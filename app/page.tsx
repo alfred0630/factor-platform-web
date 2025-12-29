@@ -15,6 +15,9 @@ const GH_BRANCH = "main";
 // raw file base (fast, CORS ok)
 const RAW_BASE = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}`;
 
+// GitHub API (to list files)
+
+
 type ReturnsResp = {
   name?: string;
   factor?: string;
@@ -174,6 +177,7 @@ async function listFactorsFromGithub(): Promise<string[]> {
   names.sort((a, b) => a.localeCompare(b));
   return names;
 }
+
 
 export default function Home() {
   const [factors, setFactors] = useState<string[]>([]);
@@ -439,182 +443,120 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        {/* Header */}
-        <div className="rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">多因子投資系統</h1>
-              <p className="mt-1 text-sm text-gray-600">
-                資料來源：GitHub（{GH_OWNER}/{GH_REPO}）｜ 前端：Next.js（本機 3000 / GitHub Pages）
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-600">
-                Data: {GH_BRANCH}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-600">
-                Theme: White
-              </span>
-            </div>
-          </div>
-        </div>
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <h1 className="text-2xl font-semibold">Factor Investing Dashboard (MVP)</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          資料來源：GitHub（{GH_OWNER}/{GH_REPO}）｜ 前端：Next.js（本機 3000 / GitHub Pages）
+        </p>
 
         {/* grid：第1排 Sidebar+區間績效，第2排 Heatmap，第3排 Global Wave */}
-        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-12">
-          {/* ================= Section 1: Sidebar + Performance ================= */}
-          <div className="md:col-span-12 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs font-medium text-gray-500">SECTION 01</div>
-                <h2 className="mt-1 text-lg font-semibold">區間績效分析</h2>
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-12">
+          {/* ================= Sidebar（只在第一排） ================= */}
+          <div className="md:col-span-4 rounded-2xl bg-white p-4 shadow-sm border">
+            <h2 className="text-lg font-semibold">設定</h2>
+
+            <div className="mt-4">
+              <div className="text-sm font-medium">選因子（可多選）</div>
+              <div className="mt-2 max-h-40 overflow-auto rounded-xl border p-2">
+                {factors.map((f) => (
+                  <label key={f} className="flex items-center gap-2 py-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(f)}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelected([...selected, f]);
+                        else setSelected(selected.filter((x) => x !== f));
+                      }}
+                    />
+                    {f}
+                  </label>
+                ))}
+                {factors.length === 0 && <div className="text-sm text-gray-500">因子清單讀取失敗（檢查 GitHub repo /data/returns）</div>}
               </div>
-              <div className="text-xs text-gray-500">選因子 → 設定期間 → 查看累積報酬與指標</div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-12">
-              {/* Sidebar */}
-              <div className="md:col-span-4 rounded-2xl border border-gray-200 bg-white p-4">
-                <h3 className="text-base font-semibold">設定</h3>
-
-                <div className="mt-4">
-                  <div className="text-sm font-medium">選因子（可多選）</div>
-                  <div className="mt-2 max-h-44 overflow-auto rounded-xl border border-gray-200 p-2">
-                    {factors.map((f) => (
-                      <label key={f} className="flex items-center gap-2 py-1 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(f)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelected([...selected, f]);
-                            else setSelected(selected.filter((x) => x !== f));
-                          }}
-                        />
-                        {f}
-                      </label>
-                    ))}
-                    {factors.length === 0 && <div className="text-sm text-gray-500">因子清單讀取失敗（檢查 data/manifest.json）</div>}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-3">
-                  <div>
-                    <div className="text-sm font-medium">Start</div>
-                    <input
-                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400"
-                      value={start}
-                      onChange={(e) => setStart(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-medium">End</div>
-                    <input
-                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400"
-                      value={end}
-                      onChange={(e) => setEnd(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-medium">rf（年化）</div>
-                    <input
-                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400"
-                      type="number"
-                      step="0.01"
-                      value={rf}
-                      onChange={(e) => setRf(parseFloat(e.target.value || "0"))}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 text-xs text-gray-500">* Global Wave 區塊會在下方獨立選因子（不跟這裡同步）。</div>
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <div>
+                <div className="text-sm font-medium">Start</div>
+                <input className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" value={start} onChange={(e) => setStart(e.target.value)} />
               </div>
 
-              {/* Performance */}
-              <div className="md:col-span-8 rounded-2xl border border-gray-200 bg-white p-4">
-                <div className="flex items-baseline justify-between">
-                  <h3 className="text-base font-semibold">累積報酬</h3>
-                  <div className="text-xs text-gray-500">Cumulative Return</div>
-                </div>
-
-                <div className="mt-3">
-                  <Plot
-                    data={chartData as any}
-                    layout={{
-                      title: "",
-                      autosize: true,
-                      paper_bgcolor: "white",
-                      plot_bgcolor: "white",
-                      margin: { l: 55, r: 20, t: 10, b: 45 },
-                      xaxis: { showgrid: true, gridcolor: "rgba(0,0,0,0.06)" },
-                      yaxis: { showgrid: true, gridcolor: "rgba(0,0,0,0.06)" },
-                      legend: { orientation: "h", y: 1.12, x: 0 },
-                    }}
-                    style={{ width: "100%", height: "420px" }}
-                    useResizeHandler
-                  />
-                </div>
-
-                <div className="mt-6 flex items-baseline justify-between">
-                  <h3 className="text-base font-semibold">指標（前端即時計算）</h3>
-                  <div className="text-xs text-gray-500">Annualized</div>
-                </div>
-
-                <div className="mt-2 overflow-x-auto rounded-xl border border-gray-200">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr className="border-b border-gray-200">
-                        <th className="px-3 py-2 text-left font-semibold">Factor</th>
-                        <th className="px-3 py-2 text-left font-semibold">Ann Return</th>
-                        <th className="px-3 py-2 text-left font-semibold">Ann Vol</th>
-                        <th className="px-3 py-2 text-left font-semibold">Sharpe</th>
-                        <th className="px-3 py-2 text-left font-semibold">MaxDD</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {metrics.map((row) => (
-                        <tr key={row.factor} className="border-b border-gray-100 last:border-0">
-                          <td className="px-3 py-2">{row.factor}</td>
-                          <td className="px-3 py-2">{(row.ann_return * 100).toFixed(2)}%</td>
-                          <td className="px-3 py-2">{(row.ann_vol * 100).toFixed(2)}%</td>
-                          <td className="px-3 py-2">{row.sharpe === null ? "-" : row.sharpe.toFixed(2)}</td>
-                          <td className="px-3 py-2">{(row.maxdd * 100).toFixed(2)}%</td>
-                        </tr>
-                      ))}
-                      {metrics.length === 0 && (
-                        <tr>
-                          <td className="px-3 py-3 text-gray-500" colSpan={5}>
-                            沒有指標資料（可能是日期範圍沒有資料或資料載入失敗）
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-3 text-xs text-gray-500">
-                  提示：如果圖是空的，通常是 <span className="font-medium">選到的因子沒有資料</span> 或 <span className="font-medium">日期區間超出資料範圍</span>。
-                </div>
+              <div>
+                <div className="text-sm font-medium">End</div>
+                <input className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" value={end} onChange={(e) => setEnd(e.target.value)} />
               </div>
+
+              <div>
+                <div className="text-sm font-medium">rf（年化）</div>
+                <input
+                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  type="number"
+                  step="0.01"
+                  value={rf}
+                  onChange={(e) => setRf(parseFloat(e.target.value || "0"))}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 text-xs text-gray-500">* Global Wave 區塊會在下方獨立選因子（不跟這裡同步）。</div>
+          </div>
+
+          {/* ================= 區間績效（第一排右側） ================= */}
+          <div className="md:col-span-8 rounded-2xl bg-white p-4 shadow-sm border">
+            <h2 className="text-lg font-semibold">區間績效</h2>
+
+            <div className="mt-3">
+              <Plot
+                data={chartData as any}
+                layout={{ title: "Cumulative Return", autosize: true, margin: { l: 50, r: 20, t: 50, b: 40 } }}
+                style={{ width: "100%", height: "420px" }}
+                useResizeHandler
+              />
+            </div>
+
+            <h3 className="mt-6 text-base font-semibold">指標（前端即時計算）</h3>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2 text-left">Factor</th>
+                    <th className="py-2 text-left">Ann Return</th>
+                    <th className="py-2 text-left">Ann Vol</th>
+                    <th className="py-2 text-left">Sharpe</th>
+                    <th className="py-2 text-left">MaxDD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {metrics.map((row) => (
+                    <tr key={row.factor} className="border-b last:border-0">
+                      <td className="py-2">{row.factor}</td>
+                      <td className="py-2">{(row.ann_return * 100).toFixed(2)}%</td>
+                      <td className="py-2">{(row.ann_vol * 100).toFixed(2)}%</td>
+                      <td className="py-2">{row.sharpe === null ? "-" : row.sharpe.toFixed(2)}</td>
+                      <td className="py-2">{(row.maxdd * 100).toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                  {metrics.length === 0 && (
+                    <tr>
+                      <td className="py-3 text-gray-500" colSpan={5}>
+                        沒有指標資料（可能是日期範圍沒有資料或資料載入失敗）
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
-          {/* ================= Section 2: Heatmap ================= */}
-          <div className="md:col-span-12 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
-              <div>
-                <div className="text-xs font-medium text-gray-500">SECTION 02</div>
-                <h2 className="mt-1 text-lg font-semibold">近 12 月因子報酬排名</h2>
-              </div>
+          {/* ================= Heatmap（第二排，跨整排） ================= */}
+          <div className="md:col-span-12 rounded-2xl bg-white p-4 shadow-sm border">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-lg font-semibold">近 12 月因子報酬排名</h2>
               <div className="text-xs text-gray-500">顏色固定對應因子｜每月由上到下排序</div>
             </div>
 
             {!heatmap?.months ? (
-              <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                熱力圖資料讀取中…（GitHub: data/heatmap/heatmap_12m.json）
-              </div>
+              <div className="mt-3 text-sm text-gray-500">熱力圖資料讀取中…（GitHub: data/heatmap/heatmap_12m.json）</div>
             ) : (
               (() => {
                 const months: string[] = heatmap.months;
@@ -653,7 +595,7 @@ export default function Home() {
                 const y = Array.from({ length: N }, (_, i) => i + 1);
 
                 return (
-                  <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-3">
+                  <div className="mt-3">
                     <Plot
                       data={[
                         {
@@ -673,15 +615,12 @@ export default function Home() {
                         },
                       ] as any}
                       layout={{
-                        margin: { l: 55, r: 20, t: 10, b: 100 },
+                        margin: { l: 50, r: 20, t: 20, b: 90 },
                         height: 720,
-                        paper_bgcolor: "white",
-                        plot_bgcolor: "white",
-                        xaxis: { type: "category", tickangle: -35, showgrid: false },
-                        yaxis: { autorange: "reversed", tickmode: "array", tickvals: y, showgrid: false },
+                        xaxis: { type: "category", tickangle: -35 },
+                        yaxis: { autorange: "reversed", tickmode: "array", tickvals: y },
                       }}
                       style={{ width: "100%" }}
-                      useResizeHandler
                     />
                   </div>
                 );
@@ -689,43 +628,34 @@ export default function Home() {
             )}
           </div>
 
-          {/* ================= Section 3: Global Wave ================= */}
-          <div className="md:col-span-12 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          {/* ================= Global Wave（第三排，跨整排） ================= */}
+          <div className="md:col-span-12 rounded-2xl bg-white p-4 shadow-sm border">
             <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
-              <div>
-                <div className="text-xs font-medium text-gray-500">SECTION 03</div>
-                <h2 className="mt-1 text-lg font-semibold">Global Wave</h2>
-              </div>
+              <h2 className="text-lg font-semibold">Global Wave</h2>
               <div className="text-xs text-gray-500">先選 +6M / +12M，再比較多因子；下方圖顯示歷史 Peak / Trough 訊號</div>
             </div>
 
             {/* Controls */}
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-12">
-              <div className="md:col-span-5 rounded-2xl border border-gray-200 bg-white p-4">
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-12">
+              <div className="md:col-span-5">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium">比較因子（可多選）</div>
 
                   {/* horizon toggle */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">Horizon</span>
-                    <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1">
-                      <button
-                        onClick={() => setGwHorizon(6)}
-                        className={`px-3 py-1 text-sm rounded-lg transition ${gwHorizon === 6 ? "bg-black text-white" : "text-gray-700 hover:bg-gray-50"}`}
-                      >
+                    <div className="inline-flex rounded-xl border bg-white p-1">
+                      <button onClick={() => setGwHorizon(6)} className={`px-3 py-1 text-sm rounded-lg ${gwHorizon === 6 ? "bg-black text-white" : ""}`}>
                         +6M
                       </button>
-                      <button
-                        onClick={() => setGwHorizon(12)}
-                        className={`px-3 py-1 text-sm rounded-lg transition ${gwHorizon === 12 ? "bg-black text-white" : "text-gray-700 hover:bg-gray-50"}`}
-                      >
+                      <button onClick={() => setGwHorizon(12)} className={`px-3 py-1 text-sm rounded-lg ${gwHorizon === 12 ? "bg-black text-white" : ""}`}>
                         +12M
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 max-h-56 overflow-auto rounded-xl border border-gray-200 p-2">
+                <div className="mt-2 max-h-48 overflow-auto rounded-xl border p-2">
                   {factors.map((f) => (
                     <label key={`gw-${f}`} className="flex items-center gap-2 py-1 text-sm">
                       <input
@@ -745,55 +675,48 @@ export default function Home() {
                 <div className="mt-2 text-xs text-gray-500">建議選 3–8 個最清楚（太多會擠）。</div>
               </div>
 
-              <div className="md:col-span-7 rounded-2xl border border-gray-200 bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">平均績效比較（{gwHorizon}M）</div>
-                  <div className="text-xs text-gray-500">綠：Trough 後｜紅：Peak 後</div>
-                </div>
+              <div className="md:col-span-7">
+                <div className="rounded-2xl border bg-gray-50 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold">平均績效比較（{gwHorizon}M）</div>
+                    <div className="text-xs text-gray-500">綠：Trough 後｜紅：Peak 後</div>
+                  </div>
 
-                {gwLoading ? (
-                  <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                    Global Wave 讀取中…（GitHub: data/global_wave/*.json）
-                  </div>
-                ) : gwSelected.length === 0 ? (
-                  <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                    請在左側勾選至少一個因子。
-                  </div>
-                ) : (
-                  <div className="mt-3">
+                  {gwLoading ? (
+                    <div className="text-sm text-gray-500 mt-4">Global Wave 讀取中…（GitHub: data/global_wave/*.json）</div>
+                  ) : gwSelected.length === 0 ? (
+                    <div className="text-sm text-gray-500 mt-4">請在左側勾選至少一個因子。</div>
+                  ) : (
                     <Plot
                       data={gwBar as any}
                       layout={{
                         barmode: "group",
-                        margin: { l: 70, r: 20, t: 10, b: 120 },
+                        margin: { l: 70, r: 20, t: 20, b: 120 },
                         height: 360,
-                        paper_bgcolor: "white",
-                        plot_bgcolor: "white",
-                        yaxis: { tickformat: ".0%", zeroline: true, showgrid: true, gridcolor: "rgba(0,0,0,0.06)" },
-                        xaxis: { tickangle: -35, type: "category", showgrid: false },
+                        yaxis: { tickformat: ".0%", zeroline: true },
+                        xaxis: { tickangle: -35, type: "category" },
                         legend: { orientation: "h" as const, y: 1.15, x: 0 },
                       }}
                       style={{ width: "100%" }}
-                      useResizeHandler
                     />
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Summary table */}
             <h3 className="mt-6 text-base font-semibold">Summary</h3>
-            <div className="mt-2 overflow-x-auto rounded-xl border border-gray-200">
+            <div className="mt-2 overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-3 py-2 text-left font-semibold">Factor</th>
-                    <th className="px-3 py-2 text-left font-semibold">Trough +6M</th>
-                    <th className="px-3 py-2 text-left font-semibold">Trough +12M</th>
-                    <th className="px-3 py-2 text-left font-semibold">Peak +6M</th>
-                    <th className="px-3 py-2 text-left font-semibold">Peak +12M</th>
-                    <th className="px-3 py-2 text-left font-semibold">n(Trough)</th>
-                    <th className="px-3 py-2 text-left font-semibold">n(Peak)</th>
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2 text-left">Factor</th>
+                    <th className="py-2 text-left">Trough +6M</th>
+                    <th className="py-2 text-left">Trough +12M</th>
+                    <th className="py-2 text-left">Peak +6M</th>
+                    <th className="py-2 text-left">Peak +12M</th>
+                    <th className="py-2 text-left">n(Trough)</th>
+                    <th className="py-2 text-left">n(Peak)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -802,20 +725,20 @@ export default function Home() {
                     const tr = d?.summary?.trough;
                     const pk = d?.summary?.peak;
                     return (
-                      <tr key={`gw-row-${f}`} className="border-b border-gray-100 last:border-0">
-                        <td className="px-3 py-2">{f}</td>
-                        <td className="px-3 py-2">{fmtPct(tr?.avg_6m ?? null)}</td>
-                        <td className="px-3 py-2">{fmtPct(tr?.avg_12m ?? null)}</td>
-                        <td className="px-3 py-2">{fmtPct(pk?.avg_6m ?? null)}</td>
-                        <td className="px-3 py-2">{fmtPct(pk?.avg_12m ?? null)}</td>
-                        <td className="px-3 py-2">{tr?.n_events ?? "-"}</td>
-                        <td className="px-3 py-2">{pk?.n_events ?? "-"}</td>
+                      <tr key={`gw-row-${f}`} className="border-b last:border-0">
+                        <td className="py-2">{f}</td>
+                        <td className="py-2">{fmtPct(tr?.avg_6m ?? null)}</td>
+                        <td className="py-2">{fmtPct(tr?.avg_12m ?? null)}</td>
+                        <td className="py-2">{fmtPct(pk?.avg_6m ?? null)}</td>
+                        <td className="py-2">{fmtPct(pk?.avg_12m ?? null)}</td>
+                        <td className="py-2">{tr?.n_events ?? "-"}</td>
+                        <td className="py-2">{pk?.n_events ?? "-"}</td>
                       </tr>
                     );
                   })}
                   {gwSelected.length > 0 && Object.keys(gwData).length === 0 && !gwLoading && (
                     <tr>
-                      <td className="px-3 py-3 text-gray-500" colSpan={7}>
+                      <td className="py-3 text-gray-500" colSpan={7}>
                         沒有 global wave 資料（確認 GitHub 上 data/global_wave/*.json 是否存在）
                       </td>
                     </tr>
@@ -825,7 +748,7 @@ export default function Home() {
             </div>
 
             {/* Signals chart */}
-            <div className="mt-8 rounded-2xl border border-gray-200 bg-white p-4">
+            <div className="mt-8 rounded-2xl border bg-gray-50 p-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="text-sm font-semibold">Global Wave 訊號歷史位置</div>
@@ -834,11 +757,7 @@ export default function Home() {
 
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">Benchmark</span>
-                  <select
-                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white outline-none focus:border-gray-400"
-                    value={gwBenchmark}
-                    onChange={(e) => setGwBenchmark(e.target.value)}
-                  >
+                  <select className="rounded-xl border px-3 py-2 text-sm bg-white" value={gwBenchmark} onChange={(e) => setGwBenchmark(e.target.value)}>
                     {factors.map((f) => (
                       <option key={`bench-${f}`} value={f}>
                         {f}
@@ -849,20 +768,16 @@ export default function Home() {
               </div>
 
               {!gwSignalTraces ? (
-                <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                  圖表讀取中…（需要 returns + global wave events）
-                </div>
+                <div className="mt-3 text-sm text-gray-500">圖表讀取中…（需要 returns + global wave events）</div>
               ) : (
                 <div className="mt-3">
                   <Plot
                     data={gwSignalTraces.traces as any}
                     layout={{
-                      margin: { l: 70, r: 20, t: 10, b: 60 },
+                      margin: { l: 70, r: 20, t: 20, b: 60 },
                       height: 420,
-                      paper_bgcolor: "white",
-                      plot_bgcolor: "white",
-                      xaxis: { type: "date", showgrid: true, gridcolor: "rgba(0,0,0,0.06)" },
-                      yaxis: { title: "Cumulative", rangemode: "tozero" as const, showgrid: true, gridcolor: "rgba(0,0,0,0.06)" },
+                      xaxis: { type: "date" },
+                      yaxis: { title: "Cumulative", rangemode: "tozero" as const },
                       legend: { orientation: "h" as const, y: 1.12, x: 0 },
                       shapes: gwSignalTraces.shapes,
                     }}
@@ -877,10 +792,6 @@ export default function Home() {
               註：平均績效使用事件日之後的區間報酬（(date, date+6M] / (date, date+12M]）。訊號圖上若事件日非交易日，會對齊到「事件日之後第一個交易日」。
             </div>
           </div>
-        </div>
-
-        <div className="mt-6 text-center text-xs text-gray-500">
-          © {new Date().getFullYear()} Multi-Factor Investing Dashboard · Powered by GitHub Data
         </div>
       </div>
     </div>
