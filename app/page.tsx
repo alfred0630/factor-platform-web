@@ -16,7 +16,7 @@ const GH_BRANCH = "main";
 const RAW_BASE = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}`;
 
 // GitHub API (to list files)
-const GH_API_BASE = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents`;
+
 
 type ReturnsResp = {
   name?: string;
@@ -162,21 +162,22 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await r.json()) as T;
 }
 
+type ManifestResp = {
+  factors: string[];
+};
+
 async function listFactorsFromGithub(): Promise<string[]> {
-  // Use GitHub contents API to list /data/returns
-  // It returns array of items with name: "<factor>.json"
-  const url = `${GH_API_BASE}/data/returns?ref=${encodeURIComponent(GH_BRANCH)}`;
-  const items = await fetchJson<any[]>(url);
+  // Read factor list from manifest.json (no GitHub API, no rate limit)
+  // database repo path: data/manifest.json
+  const url = `${RAW_BASE}/data/manifest.json`;
+  const m = await fetchJson<ManifestResp>(url);
 
-  const names = (items || [])
-    .filter((x) => x?.type === "file" && typeof x?.name === "string" && x.name.toLowerCase().endsWith(".json"))
-    .map((x) => x.name.replace(/\.json$/i, ""))
-    .filter(Boolean);
+  const names = (m?.factors || []).filter((x) => typeof x === "string" && x.trim().length > 0);
 
-  // sort stable
   names.sort((a, b) => a.localeCompare(b));
   return names;
 }
+
 
 export default function Home() {
   const [factors, setFactors] = useState<string[]>([]);
