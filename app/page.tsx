@@ -54,9 +54,7 @@ function safeNum(x: number | null | undefined) {
   return x;
 }
 
-//3
-// === 固定因子顏色（你可以依喜好調整）===
-// 微調了 Top200 的顏色以符合新的藍色系主題
+// === 固定因子顏色 ===
 const FACTOR_COLORS: Record<string, string> = {
   High_yield: "#ff7f0e",
   PB_low: "#c49c94",
@@ -68,7 +66,7 @@ const FACTOR_COLORS: Record<string, string> = {
   Margin_growth: "#2ca02c",
   EPS_growth: "#76b7b2",
   Low_beta: "#e377c2",
-  Top200: "#2563eb", // 改為亮藍色以配合主題
+  Top200: "#2563eb", // Bright Blue
 };
 
 function makeDiscreteColorscale(colorList: string[]) {
@@ -318,6 +316,24 @@ export default function Home() {
     return { traces, shapes };
   }, [benchSeries, gwData, gwBenchmark]);
 
+  // Handler for Select All - Perf Section
+  const handleSelectAllPerf = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelected(factors);
+    } else {
+      setSelected([]);
+    }
+  };
+
+  // Handler for Select All - GW Section
+  const handleSelectAllGW = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setGwSelected(factors);
+    } else {
+      setGwSelected([]);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100">
       
@@ -343,7 +359,7 @@ export default function Home() {
         {/* === 第一部分：區間表現分析 (Flex Layout for Side-by-Side) === */}
         <div className="flex flex-col lg:flex-row gap-8 mb-12">
           
-          {/* 左側：控制面板 (Full Height) */}
+          {/* 左側：控制面板 (Visual Stretch) */}
           <section className="lg:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-6">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-white">
@@ -352,10 +368,21 @@ export default function Home() {
               <h2 className="text-lg font-bold text-slate-800">系統控制</h2>
             </div>
 
-            {/* 因子選擇 */}
-            <div>
-              <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-2 block">選擇因子</label>
-              <div className="custom-scrollbar max-h-[320px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
+            {/* 因子選擇 - 使用 flex-1 填滿垂直空間 */}
+            <div className="flex-1 flex flex-col min-h-[200px]">
+              <div className="flex items-center justify-between mb-2">
+                 <label className="text-xs font-bold uppercase text-slate-400 tracking-wider block">選擇因子</label>
+                 <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      checked={factors.length > 0 && selected.length === factors.length}
+                      onChange={handleSelectAllPerf}
+                    />
+                    <span className="text-xs font-bold text-blue-600">全選</span>
+                 </label>
+              </div>
+              <div className="custom-scrollbar flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
                 {factors.map((f) => (
                   <label key={f} className="flex items-center gap-3 py-2 cursor-pointer hover:bg-slate-100 rounded px-2 transition-colors">
                     <input
@@ -374,7 +401,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 日期選擇 (日曆) */}
+            {/* 日期選擇 */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-1 block">開始日期</label>
@@ -477,7 +504,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* === 第二部分：熱力圖 (Distinct Section) === */}
+        {/* === 第二部分：熱力圖 === */}
         <section className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-12">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4">
             <div>
@@ -539,7 +566,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* === 第三部分：Global Wave (Distinct Section) === */}
+        {/* === 第三部分：Global Wave === */}
         <section className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-100 pb-6">
             <div>
@@ -547,7 +574,6 @@ export default function Home() {
               <p className="text-sm text-slate-500 mt-1">分析歷史波峰 (Peak) 與波谷 (Trough) 訊號後的因子表現</p>
             </div>
             
-            {/* Horizon Toggle */}
             <div className="bg-slate-100 p-1 rounded-lg inline-flex">
               <button 
                 onClick={() => setGwHorizon(6)} 
@@ -566,10 +592,20 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            {/* GW Sidebar */}
             <div className="lg:col-span-4 flex flex-col gap-6">
                <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
-                  <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">比較因子</h3>
+                  <div className="flex items-center justify-between mb-3">
+                     <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">比較因子</h3>
+                     <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          checked={factors.length > 0 && gwSelected.length === factors.length}
+                          onChange={handleSelectAllGW}
+                        />
+                        <span className="text-xs font-bold text-blue-600">全選</span>
+                     </label>
+                  </div>
                   <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 space-y-1">
                     {factors.map((f) => (
                       <label key={`gw-${f}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all">
@@ -589,7 +625,6 @@ export default function Home() {
                </div>
             </div>
 
-            {/* GW Bar Chart */}
             <div className="lg:col-span-8">
                <div className="bg-white rounded-xl border border-slate-100 p-4 h-full flex flex-col justify-center">
                  {gwLoading ? (
@@ -615,7 +650,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* GW Summary Table */}
           <div className="mt-8">
             <h3 className="text-sm font-bold uppercase text-slate-500 tracking-wider mb-3">數據摘要</h3>
             <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -653,7 +687,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* GW Signal Chart (Dark Theme for Contrast) */}
           <div className="mt-10 p-1 bg-slate-100 rounded-2xl">
             <div className="bg-slate-900 rounded-xl p-6 shadow-inner text-slate-200">
               <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
@@ -699,7 +732,6 @@ export default function Home() {
       </main>
 
       <style jsx global>{`
-        /* 自定義滾動條樣式，讓列表更精緻 */
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
@@ -718,4 +750,3 @@ export default function Home() {
   );
 }
 
- 
