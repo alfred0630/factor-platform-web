@@ -55,7 +55,7 @@ function safeNum(x: number | null | undefined) {
 }
 
 // === 固定因子顏色（你可以依喜好調整）===
-// 微調了 Top300 的顏色以符合新的藍色系主題
+// 微調了 Top200 的顏色以符合新的藍色系主題
 const FACTOR_COLORS: Record<string, string> = {
   High_yield: "#ff7f0e",
   PB_low: "#c49c94",
@@ -67,7 +67,7 @@ const FACTOR_COLORS: Record<string, string> = {
   Margin_growth: "#2ca02c",
   EPS_growth: "#76b7b2",
   Low_beta: "#e377c2",
-  Top300: "#2563eb", // 改為亮藍色以配合主題
+  Top200: "#2563eb", // 改為亮藍色以配合主題
 };
 
 function makeDiscreteColorscale(colorList: string[]) {
@@ -165,7 +165,7 @@ async function listFactorsFromGithub(): Promise<string[]> {
 
 export default function Home() {
   const [factors, setFactors] = useState<string[]>([]);
-  const [selected, setSelected] = useState<string[]>(["Top300"]);
+  const [selected, setSelected] = useState<string[]>(["Top200"]);
   const [start, setStart] = useState("2003-01-01");
   const [end, setEnd] = useState("2025-12-31");
   const [rf, setRf] = useState(0.0);
@@ -175,11 +175,11 @@ export default function Home() {
   const [heatmap, setHeatmap] = useState<any>(null);
 
   // ===== Global Wave =====
-  const [gwSelected, setGwSelected] = useState<string[]>(["Top300", "PE_low", "PB_low"]);
+  const [gwSelected, setGwSelected] = useState<string[]>(["Top200", "PE_low", "PB_low"]);
   const [gwData, setGwData] = useState<Record<string, GlobalWaveResp>>({});
   const [gwLoading, setGwLoading] = useState(false);
   const [gwHorizon, setGwHorizon] = useState<6 | 12>(6);
-  const [gwBenchmark, setGwBenchmark] = useState<string>("Top300");
+  const [gwBenchmark, setGwBenchmark] = useState<string>("Top200");
   const [benchSeries, setBenchSeries] = useState<ReturnsResp | null>(null);
 
   // Load Factor List
@@ -190,9 +190,9 @@ export default function Home() {
         setFactors(list);
         if (list.length) {
           if (!selected.length || !list.includes(selected[0])) setSelected([list[0]]);
-          const defaults = ["Top300", "PE_low", "PB_low"].filter((x) => list.includes(x));
+          const defaults = ["Top200", "PE_low", "PB_low"].filter((x) => list.includes(x));
           setGwSelected(defaults.length ? defaults : list.slice(0, Math.min(3, list.length)));
-          setGwBenchmark(list.includes("Top300") ? "Top300" : list[0]);
+          setGwBenchmark(list.includes("Top200") ? "Top200" : list[0]);
         }
       } catch (e) { setFactors([]); }
     })();
