@@ -281,8 +281,8 @@ export default function Home() {
     const troughY = x.map((f) => safeNum((gwData[f]?.summary?.trough as any)?.[key] ?? null));
     const peakY = x.map((f) => safeNum((gwData[f]?.summary?.peak as any)?.[key] ?? null));
     return [
-      { name: `波谷後 +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
-      { name: `波峰後 +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
+      { name: `Trough +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
+      { name: `Peak +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
     ];
   }, [gwSelected, gwData, gwHorizon]);
 
@@ -310,8 +310,8 @@ export default function Home() {
     }));
     const traces = [
       { type: "scatter", mode: "lines", name: `基準指數 (${gwBenchmark})`, x, y, line: { width: 2, color: "#3b82f6" } },
-      { type: "scatter", mode: "markers", name: "波峰 (Peak)", x: peaksX, y: peaksY, marker: { symbol: "triangle-down", size: 10, color: "#f43f5e", line: { width: 1, color: "#fff" } } },
-      { type: "scatter", mode: "markers", name: "波谷 (Trough)", x: troughX, y: troughY, marker: { symbol: "triangle-up", size: 10, color: "#10b981", line: { width: 1, color: "#fff" } } },
+      { type: "scatter", mode: "markers", name: "Peak", x: peaksX, y: peaksY, marker: { symbol: "triangle-down", size: 10, color: "#f43f5e", line: { width: 1, color: "#fff" } } },
+      { type: "scatter", mode: "markers", name: "Trough", x: troughX, y: troughY, marker: { symbol: "triangle-up", size: 10, color: "#10b981", line: { width: 1, color: "#fff" } } },
     ];
     return { traces, shapes };
   }, [benchSeries, gwData, gwBenchmark]);
@@ -571,7 +571,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-100 pb-6">
             <div>
               <h2 className="text-2xl font-bold text-slate-900">Global Wave</h2>
-              <p className="text-sm text-slate-500 mt-1">分析歷史波峰 (Peak) 與波谷 (Trough) 訊號後的因子表現</p>
+              <p className="text-sm text-slate-500 mt-1">分析歷史 Peak 與 Trough 訊號後的因子表現</p>
             </div>
             
             <div className="bg-slate-100 p-1 rounded-lg inline-flex">
@@ -657,12 +657,12 @@ export default function Home() {
                 <thead className="bg-slate-50 text-slate-600 font-semibold">
                   <tr>
                     <th className="px-4 py-3">因子名稱</th>
-                    <th className="px-4 py-3 text-emerald-600">波谷後 +6M</th>
-                    <th className="px-4 py-3 text-emerald-600">波谷後 +12M</th>
-                    <th className="px-4 py-3 text-rose-600">波峰後 +6M</th>
-                    <th className="px-4 py-3 text-rose-600">波峰後 +12M</th>
-                    <th className="px-4 py-3">波谷次數</th>
-                    <th className="px-4 py-3">波峰次數</th>
+                    <th className="px-4 py-3 text-emerald-600">Trough +6M</th>
+                    <th className="px-4 py-3 text-emerald-600">Trough +12M</th>
+                    <th className="px-4 py-3 text-rose-600">Peak +6M</th>
+                    <th className="px-4 py-3 text-rose-600">Peak +12M</th>
+                    <th className="px-4 py-3">n(Trough)</th>
+                    <th className="px-4 py-3">n(Peak)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -692,7 +692,7 @@ export default function Home() {
               <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-white">訊號歷史回測</h3>
-                  <p className="text-xs text-slate-400">藍線：基準指數｜紅▼：波峰訊號｜綠▲：波谷訊號</p>
+                  <p className="text-xs text-slate-400">藍線：基準指數｜紅▼：Peak｜綠▲：Trough</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400 font-bold uppercase">基準指數</span>
@@ -749,4 +749,3 @@ export default function Home() {
     </div>
   );
 }
-
