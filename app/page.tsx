@@ -6,8 +6,8 @@ import dynamic from "next/dynamic";
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
 /** =========================
- * GitHub data source config
- * ========================= */
+ *  GitHub data source config
+ *  ========================= */
 const GH_OWNER = "alfred0630";
 const GH_REPO = "factor-platform-database";
 const GH_BRANCH = "main";
@@ -55,7 +55,6 @@ function safeNum(x: number | null | undefined) {
 }
 
 // === 固定因子顏色（你可以依喜好調整）===
-// 微調了 Top300 的顏色以符合新的藍色系主題
 const FACTOR_COLORS: Record<string, string> = {
   High_yield: "#ff7f0e",
   PB_low: "#c49c94",
@@ -125,6 +124,7 @@ function calcMetricsFromDailyRet(factor: string, ret: number[], rfAnnual: number
   let nav = 1;
   for (const r of ret) nav *= 1 + r;
   const n = ret.length;
+
   const ann_return = Math.pow(nav, freq / n) - 1;
 
   const mean = ret.reduce((a, b) => a + b, 0) / n;
@@ -154,14 +154,11 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 type ManifestResp = { factors: string[] };
 
-type ManifestResp = { factors: string[] };
-
 async function listFactorsFromGithub(): Promise<string[]> {
+  // ✅ fixed: only define url/m/names once
   const url = `${RAW_BASE}/data/manifest.json`;
   const m = await fetchJson<ManifestResp>(url);
-  const names = (m?.factors || []).filter((x) => typeof x === "string" && x.trim().length > 0);
-  const url = `${RAW_BASE}/data/manifest.json`;
-  const m = await fetchJson<ManifestResp>(url);
+
   const names = (m?.factors || []).filter((x) => typeof x === "string" && x.trim().length > 0);
   names.sort((a, b) => a.localeCompare(b));
   return names;
@@ -226,14 +223,15 @@ export default function Home() {
 
   const [series, setSeries] = useState<Record<string, ReturnsResp>>({});
   const [metrics, setMetrics] = useState<MetricRow[]>([]);
+
   const [heatmap, setHeatmap] = useState<any>(null);
 
-  // ===== Global Wave =====
   const [gwSelected, setGwSelected] = useState<string[]>(["Top300", "PE_low", "PB_low"]);
   const [gwData, setGwData] = useState<Record<string, GlobalWaveResp>>({});
   const [gwLoading, setGwLoading] = useState(false);
 
   const [gwHorizon, setGwHorizon] = useState<6 | 12>(6);
+
   const [gwBenchmark, setGwBenchmark] = useState<string>("Top300");
   const [benchSeries, setBenchSeries] = useState<ReturnsResp | null>(null);
 
@@ -243,6 +241,7 @@ export default function Home() {
       try {
         const list = await listFactorsFromGithub();
         setFactors(list);
+
         if (list.length) {
           if (!selected.length || !list.includes(selected[0])) setSelected([list[0]]);
 
@@ -251,14 +250,22 @@ export default function Home() {
 
           setGwBenchmark(list.includes("Top300") ? "Top300" : list[0]);
         }
-      } catch (e) { setFactors([]); }
+      } catch (e) {
+        setFactors([]);
+      }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Load returns + metrics */
   useEffect(() => {
     (async () => {
-      if (!selected.length) { setSeries({}); setMetrics([]); return; }
+      if (!selected.length) {
+        setSeries({});
+        setMetrics([]);
+        return;
+      }
+
       try {
         const pairs = await Promise.all(
           selected.map(async (f) => {
@@ -270,13 +277,17 @@ export default function Home() {
             return [f, clipped] as const;
           })
         );
+
         const obj: Record<string, ReturnsResp> = {};
         for (const [f, d] of pairs) obj[f] = d;
         setSeries(obj);
 
         const rows: MetricRow[] = selected.map((f) => calcMetricsFromDailyRet(f, obj[f]?.ret || [], rf, 252));
         setMetrics(rows);
-      } catch (e) { setSeries({}); setMetrics([]); }
+      } catch (e) {
+        setSeries({});
+        setMetrics([]);
+      }
     })();
   }, [selected, start, end, rf]);
 
@@ -286,14 +297,19 @@ export default function Home() {
       try {
         const d = await fetchJson<any>(`${RAW_BASE}/data/heatmap/heatmap_12m.json`);
         setHeatmap(d);
-      } catch (e) { setHeatmap(null); }
+      } catch (e) {
+        setHeatmap(null);
+      }
     })();
   }, []);
 
   /** Global Wave */
   useEffect(() => {
     (async () => {
-      if (!gwSelected.length) { setGwData({}); return; }
+      if (!gwSelected.length) {
+        setGwData({});
+        return;
+      }
       setGwLoading(true);
       try {
         const pairs = await Promise.all(
@@ -305,28 +321,40 @@ export default function Home() {
         const obj: Record<string, GlobalWaveResp> = {};
         for (const [f, d] of pairs) obj[f] = d;
         setGwData(obj);
-      } catch (e) { setGwData({}); } finally { setGwLoading(false); }
+      } catch (e) {
+        setGwData({});
+      } finally {
+        setGwLoading(false);
+      }
     })();
   }, [gwSelected]);
 
   /** Benchmark series */
   useEffect(() => {
     (async () => {
-      if (!gwBenchmark) { setBenchSeries(null); return; }
+      if (!gwBenchmark) {
+        setBenchSeries(null);
+        return;
+      }
       try {
         const d = await fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(gwBenchmark)}.json`);
         const normalized: ReturnsResp = { factor: d.factor || d.name || gwBenchmark, dates: d.dates || [], ret: d.ret || [] };
         setBenchSeries(normalized);
-      } catch (e) { setBenchSeries(null); }
+      } catch (e) {
+        setBenchSeries(null);
+      }
     })();
   }, [gwBenchmark]);
 
   const chartData = useMemo(() => {
-    return selected.map((f) => {
-      const d = series[f];
-      if (!d || !d.dates?.length) return null;
-      return { x: d.dates, y: toCum(d.ret || []), type: "scatter", mode: "lines", name: f };
-    }).filter(Boolean);
+    return selected
+      .map((f) => {
+        const d = series[f];
+        if (!d || !d.dates?.length) return null;
+        const cum = toCum(d.ret || []);
+        return { x: d.dates, y: cum, type: "scatter" as const, mode: "lines" as const, name: f };
+      })
+      .filter(Boolean);
   }, [series, selected]);
 
   const gwBar = useMemo(() => {
@@ -334,14 +362,16 @@ export default function Home() {
     const key = gwHorizon === 6 ? "avg_6m" : "avg_12m";
     const troughY = x.map((f) => safeNum((gwData[f]?.summary?.trough as any)?.[key] ?? null));
     const peakY = x.map((f) => safeNum((gwData[f]?.summary?.peak as any)?.[key] ?? null));
+
     return [
-      { name: `波谷後 +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
-      { name: `波峰後 +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
+      { name: `Trough +${gwHorizon}M`, y: troughY, x, type: "bar" as const, marker: { color: "#22c55e" } },
+      { name: `Peak +${gwHorizon}M`, y: peakY, x, type: "bar" as const, marker: { color: "#ef4444" } },
     ];
   }, [gwSelected, gwData, gwHorizon]);
 
   const gwSignalTraces = useMemo(() => {
     if (!benchSeries?.dates?.length || !benchSeries?.ret?.length) return null;
+
     const x = benchSeries.dates;
     const y = toCum(benchSeries.ret);
 
@@ -352,12 +382,22 @@ export default function Home() {
         if (e?.date && (e.type === "trough" || e.type === "peak")) eventPool.push({ type: e.type, date: e.date });
       }
     }
-    const peaksX: string[] = [], peaksY: number[] = [], troughX: string[] = [], troughY: number[] = [];
+
+    const peaksX: string[] = [];
+    const peaksY: number[] = [];
+    const troughX: string[] = [];
+    const troughY: number[] = [];
+
     for (const e of eventPool) {
       const idx = x.findIndex((d) => d >= e.date);
       if (idx === -1) continue;
-      if (e.type === "peak") { peaksX.push(x[idx]); peaksY.push(y[idx]); }
-      else { troughX.push(x[idx]); troughY.push(y[idx]); }
+      if (e.type === "peak") {
+        peaksX.push(x[idx]);
+        peaksY.push(y[idx]);
+      } else {
+        troughX.push(x[idx]);
+        troughY.push(y[idx]);
+      }
     }
 
     const shapes: any[] = eventPool.map((e) => ({
@@ -370,17 +410,42 @@ export default function Home() {
       y1: 1,
       line: { width: 1, color: e.type === "peak" ? "rgba(239,68,68,0.25)" : "rgba(34,197,94,0.25)", dash: "dot" },
     }));
-    const traces = [
-      { type: "scatter", mode: "lines", name: `基準指數 (${gwBenchmark})`, x, y, line: { width: 2, color: "#3b82f6" } },
-      { type: "scatter", mode: "markers", name: "波峰 (Peak)", x: peaksX, y: peaksY, marker: { symbol: "triangle-down", size: 10, color: "#f43f5e", line: { width: 1, color: "#fff" } } },
-      { type: "scatter", mode: "markers", name: "波谷 (Trough)", x: troughX, y: troughY, marker: { symbol: "triangle-up", size: 10, color: "#10b981", line: { width: 1, color: "#fff" } } },
+
+    const traces: any[] = [
+      {
+        type: "scatter",
+        mode: "lines",
+        name: `Benchmark (${gwBenchmark})`,
+        x,
+        y,
+        line: { width: 2, color: "#2563eb" },
+        hovertemplate: "%{x}<br>Cum: %{y:.2f}<extra></extra>",
+      },
+      {
+        type: "scatter",
+        mode: "markers",
+        name: "GW Peak",
+        x: peaksX,
+        y: peaksY,
+        marker: { symbol: "triangle-down", size: 12, color: "#ef4444", line: { width: 1, color: "#111827" } },
+        hovertemplate: "Peak<br>%{x}<extra></extra>",
+      },
+      {
+        type: "scatter",
+        mode: "markers",
+        name: "GW Trough",
+        x: troughX,
+        y: troughY,
+        marker: { symbol: "triangle-up", size: 12, color: "#22c55e", line: { width: 1, color: "#111827" } },
+        hovertemplate: "Trough<br>%{x}<extra></extra>",
+      },
     ];
+
     return { traces, shapes };
   }, [benchSeries, gwData, gwBenchmark]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 via-gray-50 to-white text-gray-900">
-      {/* Top header */}
       <div className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4 py-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -390,17 +455,12 @@ export default function Home() {
                   <span className="text-sm font-semibold">因</span>
                 </div>
                 <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">因子投資系統</h1>
-
-                {/* ✅ PRO -> NTHU */}
                 <span className="hidden md:inline-flex rounded-full border bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-800">
                   NTHU
                 </span>
               </div>
 
-              {/* ✅ Data: GitHub -> CMoney */}
-              <p className="mt-1 text-xs md:text-sm text-gray-600">
-                Data: CMoney ｜ 前端：Next.js（本機 3000 / GitHub Pages）
-              </p>
+              <p className="mt-1 text-xs md:text-sm text-gray-600">Data: CMoney ｜ 前端：Next.js（本機 3000 / GitHub Pages）</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -416,18 +476,10 @@ export default function Home() {
       </div>
 
       <div className="mx-auto max-w-6xl px-4 py-6">
-        {/* ✅ 第一排：讓左右兩欄「同高」-> sidebar 會延伸到下方（不留醜空白） */}
         <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-12 md:items-stretch">
           {/* Sidebar */}
           <div className="md:col-span-4 flex">
-            <Card
-              title="設定"
-              subtitle="不改動資料邏輯，僅優化版面"
-              badge="控制面板"
-              className="w-full h-full"
-              bodyClassName="h-full"
-            >
-              {/* 讓內容用 flex 撐滿高度，底部留白由 spacer 吃掉 */}
+            <Card title="設定" subtitle="不改動資料邏輯，僅優化版面" badge="控制面板" className="w-full h-full" bodyClassName="h-full">
               <div className="flex h-full flex-col">
                 <div className="space-y-5">
                   <div>
@@ -487,7 +539,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* spacer：把提示固定到卡片底部，整張卡自然延伸到右側高度 */}
                 <div className="flex-1" />
 
                 <div className="rounded-2xl border bg-gray-50 px-3 py-2 text-xs text-gray-600">
@@ -563,7 +614,9 @@ export default function Home() {
           <div className="md:col-span-12">
             <Card title="近 12 個月因子報酬排名" subtitle="每月由上到下為排名（顏色固定對應因子）" badge="熱力圖">
               {!heatmap?.months ? (
-                <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-500">熱力圖資料讀取中…（GitHub: data/heatmap/heatmap_12m.json）</div>
+                <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-500">
+                  熱力圖資料讀取中…（GitHub: data/heatmap/heatmap_12m.json）
+                </div>
               ) : (
                 (() => {
                   const months: string[] = heatmap.months;
@@ -573,7 +626,9 @@ export default function Home() {
                   const N = rankedFactors?.[0]?.length ?? 0;
 
                   const factorList: string[] =
-                    heatmap.factors && Array.isArray(heatmap.factors) ? heatmap.factors : Array.from(new Set(rankedFactors.flat()));
+                    heatmap.factors && Array.isArray(heatmap.factors)
+                      ? heatmap.factors
+                      : Array.from(new Set(rankedFactors.flat()));
 
                   const factorToCode: Record<string, number> = {};
                   factorList.forEach((f, i) => (factorToCode[f] = i));
@@ -591,7 +646,10 @@ export default function Home() {
 
                       z[row][col] = factorToCode[fname] ?? -1;
 
-                      const pct = r === null || r === undefined || Number.isNaN(r as any) ? "NA" : `${((r as number) * 100).toFixed(2)}%`;
+                      const pct =
+                        r === null || r === undefined || Number.isNaN(r as any)
+                          ? "NA"
+                          : `${((r as number) * 100).toFixed(2)}%`;
 
                       text[row][col] =
                         `<span style="font-size:10px; font-weight:520">${fname}</span><br>` +
@@ -652,13 +710,17 @@ export default function Home() {
                       <div className="inline-flex rounded-2xl border bg-white p-1 shadow-sm">
                         <button
                           onClick={() => setGwHorizon(6)}
-                          className={`px-3 py-1.5 text-sm rounded-xl transition ${gwHorizon === 6 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+                          className={`px-3 py-1.5 text-sm rounded-xl transition ${
+                            gwHorizon === 6 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"
+                          }`}
                         >
                           +6M
                         </button>
                         <button
                           onClick={() => setGwHorizon(12)}
-                          className={`px-3 py-1.5 text-sm rounded-xl transition ${gwHorizon === 12 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+                          className={`px-3 py-1.5 text-sm rounded-xl transition ${
+                            gwHorizon === 12 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"
+                          }`}
                         >
                           +12M
                         </button>
@@ -695,7 +757,9 @@ export default function Home() {
                     </div>
 
                     {gwLoading ? (
-                      <div className="mt-4 rounded-2xl border bg-white p-4 text-sm text-gray-500">Global Wave 讀取中…（GitHub: data/global_wave/*.json）</div>
+                      <div className="mt-4 rounded-2xl border bg-white p-4 text-sm text-gray-500">
+                        Global Wave 讀取中…（GitHub: data/global_wave/*.json）
+                      </div>
                     ) : gwSelected.length === 0 ? (
                       <div className="mt-4 rounded-2xl border bg-white p-4 text-sm text-gray-500">請在左側勾選至少一個因子。</div>
                     ) : (
