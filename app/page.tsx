@@ -68,6 +68,7 @@ const FACTOR_COLORS: Record<string, string> = {
   EPS_growth: "#76b7b2",
   Low_beta: "#e377c2",
   Top300: "#9c755f",
+  Top200: "#9c755f",
 };
 
 function makeDiscreteColorscale(colorList: string[]) {
@@ -108,7 +109,7 @@ function clipByRange(d: ReturnsResp, start: string, end: string): ReturnsResp {
 function maxDrawdownFromReturns(ret: number[]) {
   let peak = 1;
   let nav = 1;
-  let maxdd = 0; // negative
+  let maxdd = 0;
   for (const r of ret) {
     nav *= 1 + r;
     if (nav > peak) peak = nav;
@@ -153,7 +154,12 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 type ManifestResp = { factors: string[] };
 
+type ManifestResp = { factors: string[] };
+
 async function listFactorsFromGithub(): Promise<string[]> {
+  const url = `${RAW_BASE}/data/manifest.json`;
+  const m = await fetchJson<ManifestResp>(url);
+  const names = (m?.factors || []).filter((x) => typeof x === "string" && x.trim().length > 0);
   const url = `${RAW_BASE}/data/manifest.json`;
   const m = await fetchJson<ManifestResp>(url);
   const names = (m?.factors || []).filter((x) => typeof x === "string" && x.trim().length > 0);
@@ -227,14 +233,11 @@ export default function Home() {
   const [gwData, setGwData] = useState<Record<string, GlobalWaveResp>>({});
   const [gwLoading, setGwLoading] = useState(false);
 
-  // horizon selector: 6m / 12m
   const [gwHorizon, setGwHorizon] = useState<6 | 12>(6);
   const [gwBenchmark, setGwBenchmark] = useState<string>("Top300");
   const [benchSeries, setBenchSeries] = useState<ReturnsResp | null>(null);
 
-  /** =========================
-   * Load factor list (GitHub)
-   * ========================= */
+  /** Load factor list */
   useEffect(() => {
     (async () => {
       try {
@@ -243,21 +246,16 @@ export default function Home() {
         if (list.length) {
           if (!selected.length || !list.includes(selected[0])) setSelected([list[0]]);
 
-          // init gw compare selection
           const defaults = ["Top300", "PE_low", "PB_low"].filter((x) => list.includes(x));
           setGwSelected(defaults.length ? defaults : list.slice(0, Math.min(3, list.length)));
 
-          // init benchmark
           setGwBenchmark(list.includes("Top300") ? "Top300" : list[0]);
         }
       } catch (e) { setFactors([]); }
     })();
   }, []);
 
-  /** =========================
-   * Load returns (raw github)
-   * and compute metrics on client
-   * ========================= */
+  /** Load returns + metrics */
   useEffect(() => {
     (async () => {
       if (!selected.length) { setSeries({}); setMetrics([]); return; }
@@ -276,19 +274,13 @@ export default function Home() {
         for (const [f, d] of pairs) obj[f] = d;
         setSeries(obj);
 
-        // metrics (client)
-        const rows: MetricRow[] = selected.map((f) => {
-          const d = obj[f];
-          return calcMetricsFromDailyRet(f, d?.ret || [], rf, 252);
-        });
+        const rows: MetricRow[] = selected.map((f) => calcMetricsFromDailyRet(f, obj[f]?.ret || [], rf, 252));
         setMetrics(rows);
       } catch (e) { setSeries({}); setMetrics([]); }
     })();
   }, [selected, start, end, rf]);
 
-  /** =========================
-   * Heatmap
-   * ========================= */
+  /** Heatmap */
   useEffect(() => {
     (async () => {
       try {
@@ -298,9 +290,7 @@ export default function Home() {
     })();
   }, []);
 
-  /** =========================
-   * Global wave compare
-   * ========================= */
+  /** Global Wave */
   useEffect(() => {
     (async () => {
       if (!gwSelected.length) { setGwData({}); return; }
@@ -319,9 +309,7 @@ export default function Home() {
     })();
   }, [gwSelected]);
 
-  /** =========================
-   * Benchmark series for GW signals chart
-   * ========================= */
+  /** Benchmark series */
   useEffect(() => {
     (async () => {
       if (!gwBenchmark) { setBenchSeries(null); return; }
@@ -333,7 +321,6 @@ export default function Home() {
     })();
   }, [gwBenchmark]);
 
-  // Chart data (perf)
   const chartData = useMemo(() => {
     return selected.map((f) => {
       const d = series[f];
@@ -358,7 +345,6 @@ export default function Home() {
     const x = benchSeries.dates;
     const y = toCum(benchSeries.ret);
 
-    // events: union from any loaded global wave factor
     const eventPool: { type: "trough" | "peak"; date: string }[] = [];
     const anyFactor = Object.keys(gwData)[0];
     if (anyFactor && gwData[anyFactor]?.events?.length) {
@@ -382,11 +368,7 @@ export default function Home() {
       x1: e.date,
       y0: 0,
       y1: 1,
-      line: {
-        width: 1,
-        color: e.type === "peak" ? "rgba(239,68,68,0.25)" : "rgba(34,197,94,0.25)",
-        dash: "dot",
-      },
+      line: { width: 1, color: e.type === "peak" ? "rgba(239,68,68,0.25)" : "rgba(34,197,94,0.25)", dash: "dot" },
     }));
     const traces = [
       { type: "scatter", mode: "lines", name: `基準指數 (${gwBenchmark})`, x, y, line: { width: 2, color: "#3b82f6" } },
@@ -397,357 +379,449 @@ export default function Home() {
   }, [benchSeries, gwData, gwBenchmark]);
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-gray-50 to-white text-gray-900">
+      {/* Top header */}
+      <div className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-4 py-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-3">
+                <div className="h-9 w-9 rounded-2xl bg-gray-900 text-white flex items-center justify-center shadow-sm">
+                  <span className="text-sm font-semibold">因</span>
+                </div>
+                <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">因子投資系統</h1>
+
+                {/* ✅ PRO -> NTHU */}
+                <span className="hidden md:inline-flex rounded-full border bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-800">
+                  NTHU
+                </span>
+              </div>
+
+              {/* ✅ Data: GitHub -> CMoney */}
+              <p className="mt-1 text-xs md:text-sm text-gray-600">
+                Data: CMoney ｜ 前端：Next.js（本機 3000 / GitHub Pages）
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
+                期間：{start} ～ {end}
+              </span>
+              <span className="rounded-full border bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
+                rf（年化）：{Number.isFinite(rf) ? rf.toFixed(2) : "0.00"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="mx-auto max-w-6xl px-4 py-6">
-        <h1 className="text-2xl font-semibold">Factor Investing Dashboard (MVP)</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          資料來源：GitHub（{GH_OWNER}/{GH_REPO}）｜ 前端：Next.js（本機 3000 / GitHub Pages）
-        </p>
-
-        {/* grid：第1排 Sidebar+區間績效，第2排 Heatmap，第3排 Global Wave */}
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-12">
-          {/* ================= Sidebar（只在第一排） ================= */}
-          <div className="md:col-span-4 rounded-2xl bg-white p-4 shadow-sm border">
-            <h2 className="text-lg font-semibold">設定</h2>
-
-            <div className="mt-4">
-              <div className="text-sm font-medium">選因子（可多選）</div>
-              <div className="mt-2 max-h-40 overflow-auto rounded-xl border p-2">
-                {factors.map((f) => (
-                  <label key={f} className="flex items-center gap-2 py-1 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(f)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelected([...selected, f]);
-                        else setSelected(selected.filter((x) => x !== f));
-                      }}
-                    />
-                    {f}
-                  </label>
-                ))}
-                {factors.length === 0 && <div className="text-sm text-gray-500">因子清單讀取失敗（檢查 GitHub repo /data/returns）</div>}
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-3">
-              <div>
-                <div className="text-sm font-medium">Start</div>
-                <input className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" value={start} onChange={(e) => setStart(e.target.value)} />
-              </div>
-
-              <div>
-                <div className="text-sm font-medium">End</div>
-                <input className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" value={end} onChange={(e) => setEnd(e.target.value)} />
-              </div>
-
-              <div>
-                <div className="text-sm font-medium">rf（年化）</div>
-                <input
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                  type="number"
-                  step="0.01"
-                  value={rf}
-                  onChange={(e) => setRf(parseFloat(e.target.value || "0"))}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 text-xs text-gray-500">* Global Wave 區塊會在下方獨立選因子（不跟這裡同步）。</div>
-          </div>
-
-          {/* ================= 區間績效（第一排右側） ================= */}
-          <div className="md:col-span-8 rounded-2xl bg-white p-4 shadow-sm border">
-            <h2 className="text-lg font-semibold">區間績效</h2>
-
-            <div className="mt-3">
-              <Plot
-                data={chartData as any}
-                layout={{ title: "Cumulative Return", autosize: true, margin: { l: 50, r: 20, t: 50, b: 40 } }}
-                style={{ width: "100%", height: "420px" }}
-                useResizeHandler
-              />
-            </div>
-
-            <h3 className="mt-6 text-base font-semibold">指標（前端即時計算）</h3>
-            <div className="mt-2 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 text-left">Factor</th>
-                    <th className="py-2 text-left">Ann Return</th>
-                    <th className="py-2 text-left">Ann Vol</th>
-                    <th className="py-2 text-left">Sharpe</th>
-                    <th className="py-2 text-left">MaxDD</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {metrics.map((row) => (
-                    <tr key={row.factor} className="border-b last:border-0">
-                      <td className="py-2">{row.factor}</td>
-                      <td className="py-2">{(row.ann_return * 100).toFixed(2)}%</td>
-                      <td className="py-2">{(row.ann_vol * 100).toFixed(2)}%</td>
-                      <td className="py-2">{row.sharpe === null ? "-" : row.sharpe.toFixed(2)}</td>
-                      <td className="py-2">{(row.maxdd * 100).toFixed(2)}%</td>
-                    </tr>
-                  ))}
-                  {metrics.length === 0 && (
-                    <tr>
-                      <td className="py-3 text-gray-500" colSpan={5}>
-                        沒有指標資料（可能是日期範圍沒有資料或資料載入失敗）
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* ================= Heatmap（第二排，跨整排） ================= */}
-          <div className="md:col-span-12 rounded-2xl bg-white p-4 shadow-sm border">
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">近 12 月因子報酬排名</h2>
-              <div className="text-xs text-gray-500">顏色固定對應因子｜每月由上到下排序</div>
-            </div>
-
-            {!heatmap?.months ? (
-              <div className="mt-3 text-sm text-gray-500">熱力圖資料讀取中…（GitHub: data/heatmap/heatmap_12m.json）</div>
-            ) : (
-              (() => {
-                const months: string[] = heatmap.months;
-                const rankedFactors: string[][] = heatmap.ranked_factors;
-                const rankedReturns: (number | null)[][] = heatmap.ranked_returns;
-
-                const N = rankedFactors?.[0]?.length ?? 0;
-
-                const factorList: string[] =
-                  heatmap.factors && Array.isArray(heatmap.factors) ? heatmap.factors : Array.from(new Set(rankedFactors.flat()));
-
-                const factorToCode: Record<string, number> = {};
-                factorList.forEach((f, i) => (factorToCode[f] = i));
-
-                const colors = factorList.map((f) => FACTOR_COLORS[f] || "#d1d5db");
-                const colorscale = makeDiscreteColorscale(colors);
-
-                const z: number[][] = Array.from({ length: N }, () => Array(months.length).fill(0));
-                const text: string[][] = Array.from({ length: N }, () => Array(months.length).fill(""));
-
-                for (let col = 0; col < months.length; col++) {
-                  for (let row = 0; row < N; row++) {
-                    const fname = rankedFactors[col]?.[row] ?? "";
-                    const r = rankedReturns?.[col]?.[row];
-
-                    z[row][col] = factorToCode[fname] ?? -1;
-
-                    const pct = r === null || r === undefined || Number.isNaN(r as any) ? "NA" : `${((r as number) * 100).toFixed(2)}%`;
-
-                    text[row][col] =
-                      `<span style="font-size:10px; font-weight:520">${fname}</span><br>` +
-                      `<span style="font-size:11px; font-weight:530">${pct}</span>`;
-                  }
-                }
-
-                const y = Array.from({ length: N }, (_, i) => i + 1);
-
-                return (
-                  <div className="mt-3">
-                    <Plot
-                      data={[
-                        {
-                          type: "heatmap",
-                          z,
-                          x: months,
-                          y,
-                          text,
-                          texttemplate: "%{text}",
-                          textfont: { size: 9, color: "black" },
-                          constraintext: "both",
-                          hovertemplate: "Month: %{x}<br>Rank: %{y}<br>%{text}<extra></extra>",
-                          colorscale,
-                          zmin: 0,
-                          zmax: factorList.length - 1,
-                          showscale: false,
-                        },
-                      ] as any}
-                      layout={{
-                        margin: { l: 50, r: 20, t: 20, b: 90 },
-                        height: 720,
-                        xaxis: { type: "category", tickangle: -35 },
-                        yaxis: { autorange: "reversed", tickmode: "array", tickvals: y },
-                      }}
-                      style={{ width: "100%" }}
-                    />
+        {/* ✅ 第一排：讓左右兩欄「同高」-> sidebar 會延伸到下方（不留醜空白） */}
+        <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-12 md:items-stretch">
+          {/* Sidebar */}
+          <div className="md:col-span-4 flex">
+            <Card
+              title="設定"
+              subtitle="不改動資料邏輯，僅優化版面"
+              badge="控制面板"
+              className="w-full h-full"
+              bodyClassName="h-full"
+            >
+              {/* 讓內容用 flex 撐滿高度，底部留白由 spacer 吃掉 */}
+              <div className="flex h-full flex-col">
+                <div className="space-y-5">
+                  <div>
+                    <InputLabel label="選擇因子（可多選）" hint="勾選後即時更新" />
+                    <div className="mt-2 max-h-44 overflow-auto rounded-2xl border bg-white p-2 shadow-inner">
+                      {factors.map((f) => (
+                        <label key={f} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300"
+                            checked={selected.includes(f)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelected([...selected, f]);
+                              else setSelected(selected.filter((x) => x !== f));
+                            }}
+                          />
+                          <span className="text-gray-800">{f}</span>
+                        </label>
+                      ))}
+                      {factors.length === 0 && (
+                        <div className="px-2 py-2 text-sm text-gray-500">因子清單讀取失敗（檢查 GitHub repo /data/returns）</div>
+                      )}
+                    </div>
                   </div>
-                );
-              })()
-            )}
-          </div>
 
-          {/* ================= Global Wave（第三排，跨整排） ================= */}
-          <div className="md:col-span-12 rounded-2xl bg-white p-4 shadow-sm border">
-            <div className="flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
-              <h2 className="text-lg font-semibold">Global Wave</h2>
-              <div className="text-xs text-gray-500">先選 +6M / +12M，再比較多因子；下方圖顯示歷史 Peak / Trough 訊號</div>
-            </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <InputLabel label="區間開始" hint="日曆選取" />
+                      <input
+                        className="mt-1 w-full rounded-2xl border bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                        type="date"
+                        value={start}
+                        onChange={(e) => setStart(e.target.value)}
+                      />
+                    </div>
 
-            {/* Controls */}
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-12">
-              <div className="md:col-span-5">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium">比較因子（可多選）</div>
+                    <div>
+                      <InputLabel label="區間結束" hint="日曆選取" />
+                      <input
+                        className="mt-1 w-full rounded-2xl border bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                        type="date"
+                        value={end}
+                        onChange={(e) => setEnd(e.target.value)}
+                      />
+                    </div>
 
-                  {/* horizon toggle */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Horizon</span>
-                    <div className="inline-flex rounded-xl border bg-white p-1">
-                      <button onClick={() => setGwHorizon(6)} className={`px-3 py-1 text-sm rounded-lg ${gwHorizon === 6 ? "bg-black text-white" : ""}`}>
-                        +6M
-                      </button>
-                      <button onClick={() => setGwHorizon(12)} className={`px-3 py-1 text-sm rounded-lg ${gwHorizon === 12 ? "bg-black text-white" : ""}`}>
-                        +12M
-                      </button>
+                    <div>
+                      <InputLabel label="無風險利率 rf（年化）" hint="例如 0.02 代表 2%" />
+                      <input
+                        className="mt-1 w-full rounded-2xl border bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                        type="number"
+                        step="0.01"
+                        value={rf}
+                        onChange={(e) => setRf(parseFloat(e.target.value || "0"))}
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-2 max-h-48 overflow-auto rounded-xl border p-2">
-                  {factors.map((f) => (
-                    <label key={`gw-${f}`} className="flex items-center gap-2 py-1 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={gwSelected.includes(f)}
-                        onChange={(e) => {
-                          if (e.target.checked) setGwSelected([...gwSelected, f]);
-                          else setGwSelected(gwSelected.filter((x) => x !== f));
-                        }}
-                      />
-                      {f}
-                    </label>
-                  ))}
-                  {factors.length === 0 && <div className="text-sm text-gray-500">因子清單讀取失敗</div>}
-                </div>
+                {/* spacer：把提示固定到卡片底部，整張卡自然延伸到右側高度 */}
+                <div className="flex-1" />
 
-                <div className="mt-2 text-xs text-gray-500">建議選 3–8 個最清楚（太多會擠）。</div>
-              </div>
-
-              <div className="md:col-span-7">
-                <div className="rounded-2xl border bg-gray-50 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">平均績效比較（{gwHorizon}M）</div>
-                    <div className="text-xs text-gray-500">綠：Trough 後｜紅：Peak 後</div>
-                  </div>
-
-                  {gwLoading ? (
-                    <div className="text-sm text-gray-500 mt-4">Global Wave 讀取中…（GitHub: data/global_wave/*.json）</div>
-                  ) : gwSelected.length === 0 ? (
-                    <div className="text-sm text-gray-500 mt-4">請在左側勾選至少一個因子。</div>
-                  ) : (
-                    <Plot
-                      data={gwBar as any}
-                      layout={{
-                        barmode: "group",
-                        margin: { l: 70, r: 20, t: 20, b: 120 },
-                        height: 360,
-                        yaxis: { tickformat: ".0%", zeroline: true },
-                        xaxis: { tickangle: -35, type: "category" },
-                        legend: { orientation: "h" as const, y: 1.15, x: 0 },
-                      }}
-                      style={{ width: "100%" }}
-                    />
-                  )}
+                <div className="rounded-2xl border bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  *「Global Wave」區塊會在下方獨立選因子（不跟這裡同步）。
                 </div>
               </div>
-            </div>
+            </Card>
+          </div>
 
-            {/* Summary table */}
-            <h3 className="mt-6 text-base font-semibold">Summary</h3>
-            <div className="mt-2 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="py-2 text-left">Factor</th>
-                    <th className="py-2 text-left">Trough +6M</th>
-                    <th className="py-2 text-left">Trough +12M</th>
-                    <th className="py-2 text-left">Peak +6M</th>
-                    <th className="py-2 text-left">Peak +12M</th>
-                    <th className="py-2 text-left">n(Trough)</th>
-                    <th className="py-2 text-left">n(Peak)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gwSelected.map((f) => {
-                    const d = gwData[f];
-                    const tr = d?.summary?.trough;
-                    const pk = d?.summary?.peak;
-                    return (
-                      <tr key={`gw-row-${f}`} className="border-b last:border-0">
-                        <td className="py-2">{f}</td>
-                        <td className="py-2">{fmtPct(tr?.avg_6m ?? null)}</td>
-                        <td className="py-2">{fmtPct(tr?.avg_12m ?? null)}</td>
-                        <td className="py-2">{fmtPct(pk?.avg_6m ?? null)}</td>
-                        <td className="py-2">{fmtPct(pk?.avg_12m ?? null)}</td>
-                        <td className="py-2">{tr?.n_events ?? "-"}</td>
-                        <td className="py-2">{pk?.n_events ?? "-"}</td>
-                      </tr>
-                    );
-                  })}
-                  {gwSelected.length > 0 && Object.keys(gwData).length === 0 && !gwLoading && (
-                    <tr>
-                      <td className="py-3 text-gray-500" colSpan={7}>
-                        沒有 global wave 資料（確認 GitHub 上 data/global_wave/*.json 是否存在）
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Signals chart */}
-            <div className="mt-8 rounded-2xl border bg-gray-50 p-4">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="text-sm font-semibold">Global Wave 訊號歷史位置</div>
-                  <div className="text-xs text-gray-500">藍線：Benchmark 累積報酬｜紅▼：Peak｜綠▲：Trough｜淡虛線：事件日期</div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Benchmark</span>
-                  <select className="rounded-xl border px-3 py-2 text-sm bg-white" value={gwBenchmark} onChange={(e) => setGwBenchmark(e.target.value)}>
-                    {factors.map((f) => (
-                      <option key={`bench-${f}`} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {!gwSignalTraces ? (
-                <div className="mt-3 text-sm text-gray-500">圖表讀取中…（需要 returns + global wave events）</div>
-              ) : (
-                <div className="mt-3">
+          {/* Performance */}
+          <div className="md:col-span-8 flex">
+            <Card title="區間表現" subtitle="累積報酬 + 指標（前端即時計算）" badge="績效概覽" className="w-full h-full" bodyClassName="h-full">
+              <div className="flex h-full flex-col">
+                <div className="rounded-3xl border bg-white p-3 shadow-sm">
                   <Plot
-                    data={gwSignalTraces.traces as any}
+                    data={chartData as any}
                     layout={{
-                      margin: { l: 70, r: 20, t: 20, b: 60 },
-                      height: 420,
-                      xaxis: { type: "date" },
-                      yaxis: { title: "Cumulative", rangemode: "tozero" as const },
-                      legend: { orientation: "h" as const, y: 1.12, x: 0 },
-                      shapes: gwSignalTraces.shapes,
+                      title: "累積報酬（Cumulative Return）",
+                      autosize: true,
+                      margin: { l: 55, r: 20, t: 55, b: 45 },
+                      paper_bgcolor: "white",
+                      plot_bgcolor: "white",
+                      font: { color: "#111827" },
                     }}
-                    style={{ width: "100%" }}
+                    style={{ width: "100%", height: "420px" }}
                     useResizeHandler
                   />
                 </div>
-              )}
-            </div>
 
-            <div className="mt-3 text-xs text-gray-500">
-              註：平均績效使用事件日之後的區間報酬（(date, date+6M] / (date, date+12M]）。訊號圖上若事件日非交易日，會對齊到「事件日之後第一個交易日」。
-            </div>
+                <div className="mt-6 flex items-baseline justify-between">
+                  <h3 className="text-base font-semibold">績效指標</h3>
+                  <div className="text-xs text-gray-500">年化基準：252 交易日｜MaxDD 為區間最大回撤</div>
+                </div>
+
+                <div className="mt-3 overflow-x-auto rounded-2xl border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr className="border-b">
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">因子</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">年化報酬</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">年化波動</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">夏普</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-700">最大回撤</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {metrics.map((row) => (
+                        <tr key={row.factor} className="border-b last:border-0 hover:bg-gray-50/60">
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.factor}</td>
+                          <td className="px-4 py-3">{(row.ann_return * 100).toFixed(2)}%</td>
+                          <td className="px-4 py-3">{(row.ann_vol * 100).toFixed(2)}%</td>
+                          <td className="px-4 py-3">{row.sharpe === null ? "-" : row.sharpe.toFixed(2)}</td>
+                          <td className="px-4 py-3">{(row.maxdd * 100).toFixed(2)}%</td>
+                        </tr>
+                      ))}
+                      {metrics.length === 0 && (
+                        <tr>
+                          <td className="px-4 py-4 text-gray-500" colSpan={5}>
+                            沒有指標資料（可能是日期範圍沒有資料或資料載入失敗）
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex-1" />
+              </div>
+            </Card>
+          </div>
+
+          {/* Heatmap */}
+          <div className="md:col-span-12">
+            <Card title="近 12 個月因子報酬排名" subtitle="每月由上到下為排名（顏色固定對應因子）" badge="熱力圖">
+              {!heatmap?.months ? (
+                <div className="rounded-2xl border bg-gray-50 p-4 text-sm text-gray-500">熱力圖資料讀取中…（GitHub: data/heatmap/heatmap_12m.json）</div>
+              ) : (
+                (() => {
+                  const months: string[] = heatmap.months;
+                  const rankedFactors: string[][] = heatmap.ranked_factors;
+                  const rankedReturns: (number | null)[][] = heatmap.ranked_returns;
+
+                  const N = rankedFactors?.[0]?.length ?? 0;
+
+                  const factorList: string[] =
+                    heatmap.factors && Array.isArray(heatmap.factors) ? heatmap.factors : Array.from(new Set(rankedFactors.flat()));
+
+                  const factorToCode: Record<string, number> = {};
+                  factorList.forEach((f, i) => (factorToCode[f] = i));
+
+                  const colors = factorList.map((f) => FACTOR_COLORS[f] || "#d1d5db");
+                  const colorscale = makeDiscreteColorscale(colors);
+
+                  const z: number[][] = Array.from({ length: N }, () => Array(months.length).fill(0));
+                  const text: string[][] = Array.from({ length: N }, () => Array(months.length).fill(""));
+
+                  for (let col = 0; col < months.length; col++) {
+                    for (let row = 0; row < N; row++) {
+                      const fname = rankedFactors[col]?.[row] ?? "";
+                      const r = rankedReturns?.[col]?.[row];
+
+                      z[row][col] = factorToCode[fname] ?? -1;
+
+                      const pct = r === null || r === undefined || Number.isNaN(r as any) ? "NA" : `${((r as number) * 100).toFixed(2)}%`;
+
+                      text[row][col] =
+                        `<span style="font-size:10px; font-weight:520">${fname}</span><br>` +
+                        `<span style="font-size:11px; font-weight:530">${pct}</span>`;
+                    }
+                  }
+
+                  const y = Array.from({ length: N }, (_, i) => i + 1);
+
+                  return (
+                    <div className="rounded-3xl border bg-white p-3 shadow-sm">
+                      <Plot
+                        data={[
+                          {
+                            type: "heatmap",
+                            z,
+                            x: months,
+                            y,
+                            text,
+                            texttemplate: "%{text}",
+                            textfont: { size: 9, color: "black" },
+                            constraintext: "both",
+                            hovertemplate: "月份: %{x}<br>排名: %{y}<br>%{text}<extra></extra>",
+                            colorscale,
+                            zmin: 0,
+                            zmax: factorList.length - 1,
+                            showscale: false,
+                          },
+                        ] as any}
+                        layout={{
+                          margin: { l: 55, r: 20, t: 15, b: 95 },
+                          height: 720,
+                          xaxis: { type: "category", tickangle: -35 },
+                          yaxis: { autorange: "reversed", tickmode: "array", tickvals: y },
+                          paper_bgcolor: "white",
+                          plot_bgcolor: "white",
+                          font: { color: "#111827" },
+                        }}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
+                  );
+                })()
+              )}
+            </Card>
+          </div>
+
+          {/* Global Wave */}
+          <div className="md:col-span-12">
+            <Card title="Global Wave" subtitle="先切換 +6M / +12M，再比較多因子；下方圖顯示歷史 Peak / Trough 訊號" badge="事件分析">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
+                <div className="md:col-span-5">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-900">比較因子（可多選）</div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">視窗</span>
+                      <div className="inline-flex rounded-2xl border bg-white p-1 shadow-sm">
+                        <button
+                          onClick={() => setGwHorizon(6)}
+                          className={`px-3 py-1.5 text-sm rounded-xl transition ${gwHorizon === 6 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+                        >
+                          +6M
+                        </button>
+                        <button
+                          onClick={() => setGwHorizon(12)}
+                          className={`px-3 py-1.5 text-sm rounded-xl transition ${gwHorizon === 12 ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-50"}`}
+                        >
+                          +12M
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 max-h-56 overflow-auto rounded-2xl border bg-white p-2 shadow-inner">
+                    {factors.map((f) => (
+                      <label key={`gw-${f}`} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300"
+                          checked={gwSelected.includes(f)}
+                          onChange={(e) => {
+                            if (e.target.checked) setGwSelected([...gwSelected, f]);
+                            else setGwSelected(gwSelected.filter((x) => x !== f));
+                          }}
+                        />
+                        <span className="text-gray-800">{f}</span>
+                      </label>
+                    ))}
+                    {factors.length === 0 && <div className="px-2 py-2 text-sm text-gray-500">因子清單讀取失敗</div>}
+                  </div>
+
+                  <div className="mt-2 text-xs text-gray-500">建議選 3–8 個最清楚（太多會擠）。</div>
+                </div>
+
+                <div className="md:col-span-7">
+                  <div className="rounded-3xl border bg-gradient-to-b from-gray-50 to-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-gray-900">平均績效比較（{gwHorizon} 個月）</div>
+                      <div className="text-xs text-gray-500">綠：Trough 後｜紅：Peak 後</div>
+                    </div>
+
+                    {gwLoading ? (
+                      <div className="mt-4 rounded-2xl border bg-white p-4 text-sm text-gray-500">Global Wave 讀取中…（GitHub: data/global_wave/*.json）</div>
+                    ) : gwSelected.length === 0 ? (
+                      <div className="mt-4 rounded-2xl border bg-white p-4 text-sm text-gray-500">請在左側勾選至少一個因子。</div>
+                    ) : (
+                      <div className="mt-3 rounded-2xl border bg-white p-2">
+                        <Plot
+                          data={gwBar as any}
+                          layout={{
+                            barmode: "group",
+                            margin: { l: 70, r: 20, t: 15, b: 120 },
+                            height: 360,
+                            yaxis: { tickformat: ".0%", zeroline: true },
+                            xaxis: { tickangle: -35, type: "category" },
+                            legend: { orientation: "h" as const, y: 1.15, x: 0 },
+                            paper_bgcolor: "white",
+                            plot_bgcolor: "white",
+                            font: { color: "#111827" },
+                          }}
+                          style={{ width: "100%" }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-7 flex items-baseline justify-between">
+                <h3 className="text-base font-semibold">摘要（Summary）</h3>
+                <div className="text-xs text-gray-500">avg 使用事件日後 (date, date+6M] / (date, date+12M]</div>
+              </div>
+
+              <div className="mt-3 overflow-x-auto rounded-2xl border">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="border-b">
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">因子</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Trough +6M</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Trough +12M</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Peak +6M</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Peak +12M</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">次數（Trough）</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">次數（Peak）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gwSelected.map((f) => {
+                      const d = gwData[f];
+                      const tr = d?.summary?.trough;
+                      const pk = d?.summary?.peak;
+                      return (
+                        <tr key={`gw-row-${f}`} className="border-b last:border-0 hover:bg-gray-50/60">
+                          <td className="px-4 py-3 font-medium text-gray-900">{f}</td>
+                          <td className="px-4 py-3">{fmtPct(tr?.avg_6m ?? null)}</td>
+                          <td className="px-4 py-3">{fmtPct(tr?.avg_12m ?? null)}</td>
+                          <td className="px-4 py-3">{fmtPct(pk?.avg_6m ?? null)}</td>
+                          <td className="px-4 py-3">{fmtPct(pk?.avg_12m ?? null)}</td>
+                          <td className="px-4 py-3">{tr?.n_events ?? "-"}</td>
+                          <td className="px-4 py-3">{pk?.n_events ?? "-"}</td>
+                        </tr>
+                      );
+                    })}
+                    {gwSelected.length > 0 && Object.keys(gwData).length === 0 && !gwLoading && (
+                      <tr>
+                        <td className="px-4 py-4 text-gray-500" colSpan={7}>
+                          沒有 Global Wave 資料（確認 GitHub 上 data/global_wave/*.json 是否存在）
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-8 rounded-3xl border bg-gradient-to-b from-gray-50 to-white p-5 shadow-sm">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">訊號在歷史走勢中的位置</div>
+                    <div className="text-xs text-gray-500">藍線：Benchmark 累積報酬｜紅▼：Peak｜綠▲：Trough｜淡虛線：事件日期</div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Benchmark</span>
+                    <select
+                      className="rounded-2xl border px-3 py-2 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                      value={gwBenchmark}
+                      onChange={(e) => setGwBenchmark(e.target.value)}
+                    >
+                      {factors.map((f) => (
+                        <option key={`bench-${f}`} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {!gwSignalTraces ? (
+                  <div className="mt-3 rounded-2xl border bg-white p-4 text-sm text-gray-500">圖表讀取中…（需要 returns + global wave events）</div>
+                ) : (
+                  <div className="mt-3 rounded-2xl border bg-white p-2">
+                    <Plot
+                      data={gwSignalTraces.traces as any}
+                      layout={{
+                        margin: { l: 70, r: 20, t: 15, b: 60 },
+                        height: 420,
+                        xaxis: { type: "date" },
+                        yaxis: { title: "Cumulative", rangemode: "tozero" as const },
+                        legend: { orientation: "h" as const, y: 1.12, x: 0 },
+                        shapes: gwSignalTraces.shapes,
+                        paper_bgcolor: "white",
+                        plot_bgcolor: "white",
+                        font: { color: "#111827" },
+                      }}
+                      style={{ width: "100%" }}
+                      useResizeHandler
+                    />
+                  </div>
+                )}
+
+                <div className="mt-3 text-xs text-gray-500">
+                  註：平均績效使用事件日之後的區間報酬（(date, date+6M] / (date, date+12M]）。訊號圖上若事件日非交易日，會對齊到「事件日之後第一個交易日」。
+                </div>
+              </div>
+            </Card>
           </div>
         </div>
+
+        <div className="mt-10 pb-6 text-center text-xs text-gray-400">© {new Date().getFullYear()} 因子投資系統 · Internal MVP</div>
       </div>
     </div>
   );
