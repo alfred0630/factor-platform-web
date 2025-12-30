@@ -54,6 +54,7 @@ function safeNum(x: number | null | undefined) {
   return x;
 }
 
+//3
 // === 固定因子顏色（你可以依喜好調整）===
 // 微調了 Top200 的顏色以符合新的藍色系主題
 const FACTOR_COLORS: Record<string, string> = {
