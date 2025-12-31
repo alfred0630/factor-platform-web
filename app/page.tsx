@@ -290,12 +290,20 @@ export default function Home() {
     })();
   }, [gwBenchmark]);
 
-  // --- Helpers for UI ---
-  // ✅ 1. 新增：判斷全選邏輯
+  // --- Helpers for Select All ---
+  
+  // 1. 左側控制面板的全選邏輯
   const isAllSelected = factors.length > 0 && selected.length === factors.length;
   const toggleAll = () => {
     if (isAllSelected) setSelected([]);
     else setSelected(factors);
+  };
+
+  // 2. Global Wave 的全選邏輯
+  const isGwAllSelected = factors.length > 0 && gwSelected.length === factors.length;
+  const toggleGwAll = () => {
+    if (isGwAllSelected) setGwSelected([]);
+    else setGwSelected(factors);
   };
 
   // --- Memos ---
@@ -418,16 +426,22 @@ export default function Home() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold uppercase text-slate-400 tracking-wider">選擇因子</label>
-                {/* ✅ 2. 新增：全選按鈕 UI */}
-                <button
-                  onClick={toggleAll}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
-                >
-                  {isAllSelected ? "取消全選" : "全選"}
-                </button>
               </div>
 
               <div className="custom-scrollbar max-h-[320px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
+                {/* ✅ 全選按鈕：樣式改為與下方列表一致的 Checkbox Row */}
+                <label className="flex items-center justify-between py-2 px-2 cursor-pointer hover:bg-slate-100 rounded transition-colors border-b border-slate-100 mb-1">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      checked={isAllSelected}
+                      onChange={toggleAll}
+                    />
+                    <span className="text-sm font-bold text-slate-800">全選所有因子</span>
+                  </div>
+                </label>
+
                 {factors.map((f) => (
                   <label
                     key={f}
@@ -446,12 +460,11 @@ export default function Home() {
                       <span className="text-sm font-medium text-slate-700">{f}</span>
                     </div>
 
-                    {/* ✅ 3. 優化：美觀的詳情 Icon 按鈕 (取代純文字) */}
                     <Link
                       href={`/factor/${encodeURIComponent(f)}`}
                       className="p-1.5 rounded-md text-slate-300 hover:text-blue-600 hover:bg-blue-100 transition-all"
                       title="查看因子詳情"
-                      onClick={(e) => e.stopPropagation()} // 防止點擊跳轉時觸發 checkbox
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -688,6 +701,18 @@ export default function Home() {
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
                 <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">比較因子</h3>
                 <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 space-y-1">
+                  
+                  {/* ✅ Global Wave 全選按鈕：同樣改為 Checkbox Row */}
+                  <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border-b border-slate-200 mb-1">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      checked={isGwAllSelected}
+                      onChange={toggleGwAll}
+                    />
+                    <span className="text-sm font-bold text-slate-800">全選所有因子</span>
+                  </label>
+
                   {factors.map((f) => (
                     <label
                       key={`gw-${f}`}
