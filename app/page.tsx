@@ -429,17 +429,15 @@ export default function Home() {
               </div>
 
               <div className="custom-scrollbar max-h-[320px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
-                {/* ✅ 全選按鈕：樣式改為與下方列表一致的 Checkbox Row */}
-                <label className="flex items-center justify-between py-2 px-2 cursor-pointer hover:bg-slate-100 rounded transition-colors border-b border-slate-100 mb-1">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      checked={isAllSelected}
-                      onChange={toggleAll}
-                    />
-                    <span className="text-sm font-bold text-slate-800">全選所有因子</span>
-                  </div>
+                {/* ✅ 全選按鈕：改為列表內的第一個選項，樣式與下方完全一致，並加底線區隔 */}
+                <label className="flex items-center gap-3 py-2 px-2 cursor-pointer hover:bg-slate-100 rounded transition-colors border-b border-slate-200 mb-1">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    checked={isAllSelected}
+                    onChange={toggleAll}
+                  />
+                  <span className="text-sm font-bold text-slate-800">全選所有因子</span>
                 </label>
 
                 {factors.map((f) => (
@@ -702,7 +700,7 @@ export default function Home() {
                 <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">比較因子</h3>
                 <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 space-y-1">
                   
-                  {/* ✅ Global Wave 全選按鈕：同樣改為 Checkbox Row */}
+                  {/* ✅ Global Wave 全選按鈕：同樣改為 Checkbox Row，跟上面保持一致 */}
                   <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border-b border-slate-200 mb-1">
                     <input
                       type="checkbox"
