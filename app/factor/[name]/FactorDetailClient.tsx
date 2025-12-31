@@ -5,19 +5,6 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
-export default function FactorDetailClient({ name }: { name?: string }) {
-  const pathname = usePathname();
-
-  // ✅ fallback：如果 props 沒帶到，就從網址最後一段抓
-  const safeName =
-    (name && name.trim().length ? name : decodeURIComponent((pathname || "").split("/").pop() || "")) || "";
-
-  // 下面把原本所有用到 name 的地方，全部改用 safeName
-  // 例如：header 顯示、fetch URL、useEffect dependency 都用 safeName
-}
-
-
-
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
 const GH_OWNER = "alfred0630";
@@ -25,7 +12,7 @@ const GH_REPO = "factor-platform-database";
 const GH_BRANCH = "main";
 const RAW_BASE = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}`;
 
-type ReturnsResp = { safeName?: string; factor?: string; dates: string[]; ret: number[] };
+type ReturnsResp = { name?: string; factor?: string; dates: string[]; ret: number[] };
 type MetaResp = Record<string, any>;
 type HoldingsResp = {
   factor: string;
@@ -40,8 +27,7 @@ function toCum(retArr: number[]) {
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  // ✅ 不要用 cache:"no-store"（export 容易被判 dynamic）
-  const r = await fetch(url);
+  const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) {
     const t = await r.text().catch(() => "");
     throw new Error(`fetch failed ${r.status}: ${url}\n${t.slice(0, 200)}`);
@@ -49,13 +35,27 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-export default function FactorDetailClient({ safeName }: { safeName: string }) {
+export default function FactorDetailClient({ name }: { name?: string }) {
+  const pathname = usePathname();
+
+  // ✅ 保險：props 沒帶到就從 URL 抓最後一段
+  const safeName =
+    (name && name.trim().length ? name : decodeURIComponent((pathname || "").split("/").pop() || "")) || "";
+
   const [meta, setMeta] = useState<MetaResp | null>(null);
   const [ret, setRet] = useState<ReturnsResp | null>(null);
   const [hold, setHold] = useState<HoldingsResp | null>(null);
   const [month, setMonth] = useState<string>("");
 
   useEffect(() => {
+    if (!safeName) {
+      setMeta(null);
+      setRet(null);
+      setHold(null);
+      setMonth("");
+      return;
+    }
+
     (async () => {
       try {
         const [m, r, h] = await Promise.all([
@@ -63,6 +63,7 @@ export default function FactorDetailClient({ safeName }: { safeName: string }) {
           fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(safeName)}.json`).catch(() => null),
           fetchJson<HoldingsResp>(`${RAW_BASE}/data/holdings/${encodeURIComponent(safeName)}.json`).catch(() => null),
         ]);
+
         setMeta(m);
         setRet(r);
         setHold(h);
@@ -88,7 +89,7 @@ export default function FactorDetailClient({ safeName }: { safeName: string }) {
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-extrabold tracking-tight text-slate-900">{safeName}</h1>
+            <h1 className="text-xl font-extrabold tracking-tight text-slate-900">{safeName || "-"}</h1>
             <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700 border border-blue-200">
               因子詳情
             </span>
@@ -166,7 +167,7 @@ export default function FactorDetailClient({ safeName }: { safeName: string }) {
                     y: toCum(ret.ret || []),
                     type: "scatter",
                     mode: "lines",
-                    safeName,
+                    name: safeName,
                   },
                 ] as any}
                 layout={{
@@ -197,7 +198,9 @@ export default function FactorDetailClient({ safeName }: { safeName: string }) {
                 disabled={!hold?.months?.length}
               >
                 {(hold?.months || []).map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
                 ))}
               </select>
             </div>
