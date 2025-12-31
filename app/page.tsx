@@ -55,9 +55,7 @@ function safeNum(x: number | null | undefined) {
   return x;
 }
 
-//3
-// === 固定因子顏色（你可以依喜好調整）===
-// 微調了 Top200 的顏色以符合新的藍色系主題
+// === 固定因子顏色 ===
 const FACTOR_COLORS: Record<string, string> = {
   High_yield: "#ff7f0e",
   PB_low: "#c49c94",
@@ -69,7 +67,7 @@ const FACTOR_COLORS: Record<string, string> = {
   Margin_growth: "#2ca02c",
   EPS_growth: "#76b7b2",
   Low_beta: "#e377c2",
-  Top200: "#2563eb", // 改為亮藍色以配合主題
+  Top200: "#2563eb",
 };
 
 function makeDiscreteColorscale(colorList: string[]) {
@@ -292,6 +290,14 @@ export default function Home() {
     })();
   }, [gwBenchmark]);
 
+  // --- Helpers for UI ---
+  // ✅ 1. 新增：判斷全選邏輯
+  const isAllSelected = factors.length > 0 && selected.length === factors.length;
+  const toggleAll = () => {
+    if (isAllSelected) setSelected([]);
+    else setSelected(factors);
+  };
+
   // --- Memos ---
   const chartData = useMemo(() => {
     return selected
@@ -410,34 +416,47 @@ export default function Home() {
 
             {/* 因子選擇 */}
             <div>
-              <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-2 block">選擇因子</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold uppercase text-slate-400 tracking-wider">選擇因子</label>
+                {/* ✅ 2. 新增：全選按鈕 UI */}
+                <button
+                  onClick={toggleAll}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
+                >
+                  {isAllSelected ? "取消全選" : "全選"}
+                </button>
+              </div>
+
               <div className="custom-scrollbar max-h-[320px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
                 {factors.map((f) => (
                   <label
                     key={f}
-                    className="flex items-center gap-3 py-2 cursor-pointer hover:bg-slate-100 rounded px-2 transition-colors"
+                    className="flex items-center justify-between py-2 px-2 cursor-pointer hover:bg-slate-100 rounded transition-colors group"
                   >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      checked={selected.includes(f)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelected([...selected, f]);
-                        else setSelected(selected.filter((x) => x !== f));
-                      }}
-                    />
-
-                    {/* ✅ 只在這裡加「詳情 →」，不改你原本清單行為 */}
-                    <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        checked={selected.includes(f)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelected([...selected, f]);
+                          else setSelected(selected.filter((x) => x !== f));
+                        }}
+                      />
                       <span className="text-sm font-medium text-slate-700">{f}</span>
-                      <Link
-                        href={`/factor/${encodeURIComponent(f)}`}
-                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        詳情 →
-                      </Link>
                     </div>
+
+                    {/* ✅ 3. 優化：美觀的詳情 Icon 按鈕 (取代純文字) */}
+                    <Link
+                      href={`/factor/${encodeURIComponent(f)}`}
+                      className="p-1.5 rounded-md text-slate-300 hover:text-blue-600 hover:bg-blue-100 transition-all"
+                      title="查看因子詳情"
+                      onClick={(e) => e.stopPropagation()} // 防止點擊跳轉時觸發 checkbox
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </Link>
                   </label>
                 ))}
                 {factors.length === 0 && <div className="text-sm text-slate-500 p-2">載入中...</div>}
@@ -527,13 +546,16 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-100">
                     {metrics.map((row) => (
                       <tr key={row.factor} className="hover:bg-blue-50/50 transition-colors">
-                        {/* ✅ 只把這格改成 Link，其餘不動 */}
                         <td className="px-6 py-3 font-medium text-slate-900">
                           <Link
                             href={`/factor/${encodeURIComponent(row.factor)}`}
-                            className="hover:underline text-slate-900"
+                            className="hover:underline text-slate-900 flex items-center gap-1"
                           >
                             {row.factor}
+                            {/* 小圖示，暗示可點擊 */}
+                            <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
                           </Link>
                         </td>
 
