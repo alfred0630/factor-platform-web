@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
@@ -109,7 +110,7 @@ function clipByRange(d: ReturnsResp, start: string, end: string): ReturnsResp {
 function maxDrawdownFromReturns(ret: number[]) {
   let peak = 1;
   let nav = 1;
-  let maxdd = 0; 
+  let maxdd = 0;
   for (const r of ret) {
     nav *= 1 + r;
     if (nav > peak) peak = nav;
@@ -195,14 +196,20 @@ export default function Home() {
           setGwSelected(defaults.length ? defaults : list.slice(0, Math.min(3, list.length)));
           setGwBenchmark(list.includes("Top200") ? "Top200" : list[0]);
         }
-      } catch (e) { setFactors([]); }
+      } catch (e) {
+        setFactors([]);
+      }
     })();
   }, []);
 
   // Load Returns & Metrics
   useEffect(() => {
     (async () => {
-      if (!selected.length) { setSeries({}); setMetrics([]); return; }
+      if (!selected.length) {
+        setSeries({});
+        setMetrics([]);
+        return;
+      }
       try {
         const pairs = await Promise.all(
           selected.map(async (f) => {
@@ -223,7 +230,10 @@ export default function Home() {
           return calcMetricsFromDailyRet(f, d?.ret || [], rf, 252);
         });
         setMetrics(rows);
-      } catch (e) { setSeries({}); setMetrics([]); }
+      } catch (e) {
+        setSeries({});
+        setMetrics([]);
+      }
     })();
   }, [selected, start, end, rf]);
 
@@ -233,14 +243,19 @@ export default function Home() {
       try {
         const d = await fetchJson<any>(`${RAW_BASE}/data/heatmap/heatmap_12m.json`);
         setHeatmap(d);
-      } catch (e) { setHeatmap(null); }
+      } catch (e) {
+        setHeatmap(null);
+      }
     })();
   }, []);
 
   // Load Global Wave Data
   useEffect(() => {
     (async () => {
-      if (!gwSelected.length) { setGwData({}); return; }
+      if (!gwSelected.length) {
+        setGwData({});
+        return;
+      }
       setGwLoading(true);
       try {
         const pairs = await Promise.all(
@@ -252,29 +267,40 @@ export default function Home() {
         const obj: Record<string, GlobalWaveResp> = {};
         for (const [f, d] of pairs) obj[f] = d;
         setGwData(obj);
-      } catch (e) { setGwData({}); } finally { setGwLoading(false); }
+      } catch (e) {
+        setGwData({});
+      } finally {
+        setGwLoading(false);
+      }
     })();
   }, [gwSelected]);
 
   // Load GW Benchmark
   useEffect(() => {
     (async () => {
-      if (!gwBenchmark) { setBenchSeries(null); return; }
+      if (!gwBenchmark) {
+        setBenchSeries(null);
+        return;
+      }
       try {
         const d = await fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(gwBenchmark)}.json`);
         const normalized: ReturnsResp = { factor: d.factor || d.name || gwBenchmark, dates: d.dates || [], ret: d.ret || [] };
         setBenchSeries(normalized);
-      } catch (e) { setBenchSeries(null); }
+      } catch (e) {
+        setBenchSeries(null);
+      }
     })();
   }, [gwBenchmark]);
 
   // --- Memos ---
   const chartData = useMemo(() => {
-    return selected.map((f) => {
-      const d = series[f];
-      if (!d || !d.dates?.length) return null;
-      return { x: d.dates, y: toCum(d.ret || []), type: "scatter", mode: "lines", name: f };
-    }).filter(Boolean);
+    return selected
+      .map((f) => {
+        const d = series[f];
+        if (!d || !d.dates?.length) return null;
+        return { x: d.dates, y: toCum(d.ret || []), type: "scatter", mode: "lines", name: f };
+      })
+      .filter(Boolean);
   }, [series, selected]);
 
   const gwBar = useMemo(() => {
@@ -299,28 +325,55 @@ export default function Home() {
         if (e?.date && (e.type === "trough" || e.type === "peak")) eventPool.push({ type: e.type, date: e.date });
       }
     }
-    const peaksX: string[] = [], peaksY: number[] = [], troughX: string[] = [], troughY: number[] = [];
+    const peaksX: string[] = [],
+      peaksY: number[] = [],
+      troughX: string[] = [],
+      troughY: number[] = [];
     for (const e of eventPool) {
       const idx = x.findIndex((d) => d >= e.date);
       if (idx === -1) continue;
-      if (e.type === "peak") { peaksX.push(x[idx]); peaksY.push(y[idx]); }
-      else { troughX.push(x[idx]); troughY.push(y[idx]); }
+      if (e.type === "peak") {
+        peaksX.push(x[idx]);
+        peaksY.push(y[idx]);
+      } else {
+        troughX.push(x[idx]);
+        troughY.push(y[idx]);
+      }
     }
     const shapes = eventPool.map((e) => ({
-      type: "line", xref: "x", yref: "paper", x0: e.date, x1: e.date, y0: 0, y1: 1,
+      type: "line",
+      xref: "x",
+      yref: "paper",
+      x0: e.date,
+      x1: e.date,
+      y0: 0,
+      y1: 1,
       line: { width: 1, color: e.type === "peak" ? "rgba(244,63,94,0.3)" : "rgba(16,185,129,0.3)", dash: "dot" },
     }));
     const traces = [
       { type: "scatter", mode: "lines", name: `基準指數 (${gwBenchmark})`, x, y, line: { width: 2, color: "#3b82f6" } },
-      { type: "scatter", mode: "markers", name: "波峰 (Peak)", x: peaksX, y: peaksY, marker: { symbol: "triangle-down", size: 10, color: "#f43f5e", line: { width: 1, color: "#fff" } } },
-      { type: "scatter", mode: "markers", name: "波谷 (Trough)", x: troughX, y: troughY, marker: { symbol: "triangle-up", size: 10, color: "#10b981", line: { width: 1, color: "#fff" } } },
+      {
+        type: "scatter",
+        mode: "markers",
+        name: "波峰 (Peak)",
+        x: peaksX,
+        y: peaksY,
+        marker: { symbol: "triangle-down", size: 10, color: "#f43f5e", line: { width: 1, color: "#fff" } },
+      },
+      {
+        type: "scatter",
+        mode: "markers",
+        name: "波谷 (Trough)",
+        x: troughX,
+        y: troughY,
+        marker: { symbol: "triangle-up", size: 10, color: "#10b981", line: { width: 1, color: "#fff" } },
+      },
     ];
     return { traces, shapes };
   }, [benchSeries, gwData, gwBenchmark]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100">
-      
       {/* Header - Sticky with Blur */}
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
@@ -332,22 +385,25 @@ export default function Home() {
               NTHU
             </span>
           </div>
-          <div className="text-xs text-slate-500 font-medium hidden sm:block">
-            Data: CMoney
-          </div>
+          <div className="text-xs text-slate-500 font-medium hidden sm:block">Data: CMoney</div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        
         {/* === 第一部分：區間表現分析 (Flex Layout for Side-by-Side) === */}
         <div className="flex flex-col lg:flex-row gap-8 mb-12">
-          
           {/* 左側：控制面板 (Full Height) */}
           <section className="lg:w-1/3 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-6">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-white">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  />
+                </svg>
               </span>
               <h2 className="text-lg font-bold text-slate-800">系統控制</h2>
             </div>
@@ -357,7 +413,10 @@ export default function Home() {
               <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-2 block">選擇因子</label>
               <div className="custom-scrollbar max-h-[320px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
                 {factors.map((f) => (
-                  <label key={f} className="flex items-center gap-3 py-2 cursor-pointer hover:bg-slate-100 rounded px-2 transition-colors">
+                  <label
+                    key={f}
+                    className="flex items-center gap-3 py-2 cursor-pointer hover:bg-slate-100 rounded px-2 transition-colors"
+                  >
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
@@ -367,7 +426,18 @@ export default function Home() {
                         else setSelected(selected.filter((x) => x !== f));
                       }}
                     />
-                    <span className="text-sm font-medium text-slate-700">{f}</span>
+
+                    {/* ✅ 只在這裡加「詳情 →」，不改你原本清單行為 */}
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-sm font-medium text-slate-700">{f}</span>
+                      <Link
+                        href={`/factor/${encodeURIComponent(f)}`}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        詳情 →
+                      </Link>
+                    </div>
                   </label>
                 ))}
                 {factors.length === 0 && <div className="text-sm text-slate-500 p-2">載入中...</div>}
@@ -378,20 +448,20 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-1 block">開始日期</label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   className="w-full rounded-lg border-slate-200 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 text-slate-700 bg-slate-50"
-                  value={start} 
-                  onChange={(e) => setStart(e.target.value)} 
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
                 />
               </div>
               <div>
                 <label className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-1 block">結束日期</label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   className="w-full rounded-lg border-slate-200 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 text-slate-700 bg-slate-50"
-                  value={end} 
-                  onChange={(e) => setEnd(e.target.value)} 
+                  value={end}
+                  onChange={(e) => setEnd(e.target.value)}
                 />
               </div>
             </div>
@@ -414,7 +484,6 @@ export default function Home() {
 
           {/* 右側：圖表與數據 */}
           <div className="lg:w-2/3 flex flex-col gap-6">
-            
             {/* 圖表卡片 */}
             <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="mb-4">
@@ -424,13 +493,13 @@ export default function Home() {
               <div className="w-full h-[400px]">
                 <Plot
                   data={chartData as any}
-                  layout={{ 
-                    autosize: true, 
+                  layout={{
+                    autosize: true,
                     margin: { l: 40, r: 20, t: 20, b: 40 },
                     showlegend: true,
                     legend: { orientation: "h", y: 1.1 },
                     xaxis: { gridcolor: "#f1f5f9" },
-                    yaxis: { gridcolor: "#f1f5f9" }
+                    yaxis: { gridcolor: "#f1f5f9" },
                   }}
                   style={{ width: "100%", height: "100%" }}
                   useResizeHandler
@@ -458,8 +527,17 @@ export default function Home() {
                   <tbody className="divide-y divide-slate-100">
                     {metrics.map((row) => (
                       <tr key={row.factor} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="px-6 py-3 font-medium text-slate-900">{row.factor}</td>
-                        <td className={`px-6 py-3 font-bold ${row.ann_return >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {/* ✅ 只把這格改成 Link，其餘不動 */}
+                        <td className="px-6 py-3 font-medium text-slate-900">
+                          <Link
+                            href={`/factor/${encodeURIComponent(row.factor)}`}
+                            className="hover:underline text-slate-900"
+                          >
+                            {row.factor}
+                          </Link>
+                        </td>
+
+                        <td className={`px-6 py-3 font-bold ${row.ann_return >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                           {(row.ann_return * 100).toFixed(2)}%
                         </td>
                         <td className="px-6 py-3 text-slate-600">{(row.ann_vol * 100).toFixed(2)}%</td>
@@ -468,7 +546,11 @@ export default function Home() {
                       </tr>
                     ))}
                     {metrics.length === 0 && (
-                      <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400">暫無資料</td></tr>
+                      <tr>
+                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                          暫無資料
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -485,19 +567,18 @@ export default function Home() {
               <p className="text-sm text-slate-500 mt-1">近 12 個月因子績效排名（每月由上至下排序，顏色代表不同因子）</p>
             </div>
           </div>
-          
+
           <div className="rounded-xl border border-slate-100 overflow-hidden bg-white">
             {!heatmap?.months ? (
-              <div className="h-[600px] flex items-center justify-center text-slate-400 animate-pulse">
-                資料讀取中...
-              </div>
+              <div className="h-[600px] flex items-center justify-center text-slate-400 animate-pulse">資料讀取中...</div>
             ) : (
               (() => {
                 const months: string[] = heatmap.months;
                 const rankedFactors: string[][] = heatmap.ranked_factors;
                 const rankedReturns: (number | null)[][] = heatmap.ranked_returns;
                 const N = rankedFactors?.[0]?.length ?? 0;
-                const factorList: string[] = heatmap.factors && Array.isArray(heatmap.factors) ? heatmap.factors : Array.from(new Set(rankedFactors.flat()));
+                const factorList: string[] =
+                  heatmap.factors && Array.isArray(heatmap.factors) ? heatmap.factors : Array.from(new Set(rankedFactors.flat()));
                 const factorToCode: Record<string, number> = {};
                 factorList.forEach((f, i) => (factorToCode[f] = i));
                 const colors = factorList.map((f) => FACTOR_COLORS[f] || "#d1d5db");
@@ -518,12 +599,23 @@ export default function Home() {
 
                 return (
                   <Plot
-                    data={[{
-                      type: "heatmap", z, x: months, y, text,
-                      texttemplate: "%{text}", textfont: { size: 10, color: "black" },
-                      constraintext: "both", hovertemplate: "月份: %{x}<br>排名: %{y}<br>%{text}<extra></extra>",
-                      colorscale, showscale: false, zmin: 0, zmax: factorList.length - 1,
-                    }] as any}
+                    data={[
+                      {
+                        type: "heatmap",
+                        z,
+                        x: months,
+                        y,
+                        text,
+                        texttemplate: "%{text}",
+                        textfont: { size: 10, color: "black" },
+                        constraintext: "both",
+                        hovertemplate: "月份: %{x}<br>排名: %{y}<br>%{text}<extra></extra>",
+                        colorscale,
+                        showscale: false,
+                        zmin: 0,
+                        zmax: factorList.length - 1,
+                      },
+                    ] as any}
                     layout={{
                       margin: { l: 40, r: 20, t: 20, b: 80 },
                       height: 700,
@@ -546,18 +638,22 @@ export default function Home() {
               <h2 className="text-2xl font-bold text-slate-900">Global Wave</h2>
               <p className="text-sm text-slate-500 mt-1">分析歷史波峰 (Peak) 與波谷 (Trough) 訊號後的因子表現</p>
             </div>
-            
+
             {/* Horizon Toggle */}
             <div className="bg-slate-100 p-1 rounded-lg inline-flex">
-              <button 
-                onClick={() => setGwHorizon(6)} 
-                className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${gwHorizon === 6 ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              <button
+                onClick={() => setGwHorizon(6)}
+                className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${
+                  gwHorizon === 6 ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
               >
                 +6 個月
               </button>
-              <button 
-                onClick={() => setGwHorizon(12)} 
-                className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${gwHorizon === 12 ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              <button
+                onClick={() => setGwHorizon(12)}
+                className={`px-4 py-1.5 text-sm font-bold rounded-md transition-all ${
+                  gwHorizon === 12 ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
               >
                 +12 個月
               </button>
@@ -565,53 +661,55 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
             {/* GW Sidebar */}
             <div className="lg:col-span-4 flex flex-col gap-6">
-               <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
-                  <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">比較因子</h3>
-                  <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 space-y-1">
-                    {factors.map((f) => (
-                      <label key={`gw-${f}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          checked={gwSelected.includes(f)}
-                          onChange={(e) => {
-                            if (e.target.checked) setGwSelected([...gwSelected, f]);
-                            else setGwSelected(gwSelected.filter((x) => x !== f));
-                          }}
-                        />
-                        <span className="text-sm font-medium text-slate-700">{f}</span>
-                      </label>
-                    ))}
-                  </div>
-               </div>
+              <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">比較因子</h3>
+                <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 space-y-1">
+                  {factors.map((f) => (
+                    <label
+                      key={`gw-${f}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        checked={gwSelected.includes(f)}
+                        onChange={(e) => {
+                          if (e.target.checked) setGwSelected([...gwSelected, f]);
+                          else setGwSelected(gwSelected.filter((x) => x !== f));
+                        }}
+                      />
+                      <span className="text-sm font-medium text-slate-700">{f}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* GW Bar Chart */}
             <div className="lg:col-span-8">
-               <div className="bg-white rounded-xl border border-slate-100 p-4 h-full flex flex-col justify-center">
-                 {gwLoading ? (
-                   <div className="text-center text-slate-400 py-10">讀取中...</div>
-                 ) : gwSelected.length === 0 ? (
-                   <div className="text-center text-slate-400 py-10">請選擇至少一個因子進行比較</div>
-                 ) : (
-                    <Plot
-                      data={gwBar as any}
-                      layout={{
-                        barmode: "group",
-                        margin: { l: 60, r: 20, t: 20, b: 80 },
-                        height: 350,
-                        yaxis: { tickformat: ".1%", gridcolor: "#f1f5f9" },
-                        xaxis: { tickangle: -30 },
-                        legend: { orientation: "h", y: 1.2, x: 0 },
-                      }}
-                      style={{ width: "100%" }}
-                      config={{ displayModeBar: false }}
-                    />
-                 )}
-               </div>
+              <div className="bg-white rounded-xl border border-slate-100 p-4 h-full flex flex-col justify-center">
+                {gwLoading ? (
+                  <div className="text-center text-slate-400 py-10">讀取中...</div>
+                ) : gwSelected.length === 0 ? (
+                  <div className="text-center text-slate-400 py-10">請選擇至少一個因子進行比較</div>
+                ) : (
+                  <Plot
+                    data={gwBar as any}
+                    layout={{
+                      barmode: "group",
+                      margin: { l: 60, r: 20, t: 20, b: 80 },
+                      height: 350,
+                      yaxis: { tickformat: ".1%", gridcolor: "#f1f5f9" },
+                      xaxis: { tickangle: -30 },
+                      legend: { orientation: "h", y: 1.2, x: 0 },
+                    }}
+                    style={{ width: "100%" }}
+                    config={{ displayModeBar: false }}
+                  />
+                )}
+              </div>
             </div>
           </div>
 
@@ -663,16 +761,20 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400 font-bold uppercase">基準指數</span>
-                  <select 
+                  <select
                     className="rounded bg-slate-800 border-slate-700 text-sm text-white focus:ring-blue-500"
-                    value={gwBenchmark} 
+                    value={gwBenchmark}
                     onChange={(e) => setGwBenchmark(e.target.value)}
                   >
-                    {factors.map((f) => <option key={`bench-${f}`} value={f}>{f}</option>)}
+                    {factors.map((f) => (
+                      <option key={`bench-${f}`} value={f}>
+                        {f}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
-              
+
               {!gwSignalTraces ? (
                 <div className="h-[400px] flex items-center justify-center text-slate-600">讀取中...</div>
               ) : (
@@ -681,8 +783,14 @@ export default function Home() {
                   layout={{
                     margin: { l: 50, r: 20, t: 20, b: 50 },
                     height: 420,
-                    xaxis: { type: "date", gridcolor: "#334155", tickcolor: "#94a3b8", tickfont: {color: "#cbd5e1"} },
-                    yaxis: { title: "累積報酬", gridcolor: "#334155", tickcolor: "#94a3b8", tickfont: {color: "#cbd5e1"}, titlefont: {color: "#cbd5e1"} },
+                    xaxis: { type: "date", gridcolor: "#334155", tickcolor: "#94a3b8", tickfont: { color: "#cbd5e1" } },
+                    yaxis: {
+                      title: "累積報酬",
+                      gridcolor: "#334155",
+                      tickcolor: "#94a3b8",
+                      tickfont: { color: "#cbd5e1" },
+                      titlefont: { color: "#cbd5e1" },
+                    },
                     paper_bgcolor: "rgba(0,0,0,0)",
                     plot_bgcolor: "rgba(0,0,0,0)",
                     legend: { orientation: "h", y: 1.1, font: { color: "#e2e8f0" } },
