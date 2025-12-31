@@ -1,8 +1,22 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+
+export default function FactorDetailClient({ name }: { name?: string }) {
+  const pathname = usePathname();
+
+  // ✅ fallback：如果 props 沒帶到，就從網址最後一段抓
+  const safeName =
+    (name && name.trim().length ? name : decodeURIComponent((pathname || "").split("/").pop() || "")) || "";
+
+  // 下面把原本所有用到 name 的地方，全部改用 safeName
+  // 例如：header 顯示、fetch URL、useEffect dependency 都用 safeName
+}
+
+
 
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
 
@@ -11,7 +25,7 @@ const GH_REPO = "factor-platform-database";
 const GH_BRANCH = "main";
 const RAW_BASE = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}`;
 
-type ReturnsResp = { name?: string; factor?: string; dates: string[]; ret: number[] };
+type ReturnsResp = { safeName?: string; factor?: string; dates: string[]; ret: number[] };
 type MetaResp = Record<string, any>;
 type HoldingsResp = {
   factor: string;
@@ -35,7 +49,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-export default function FactorDetailClient({ name }: { name: string }) {
+export default function FactorDetailClient({ safeName }: { safeName: string }) {
   const [meta, setMeta] = useState<MetaResp | null>(null);
   const [ret, setRet] = useState<ReturnsResp | null>(null);
   const [hold, setHold] = useState<HoldingsResp | null>(null);
@@ -45,9 +59,9 @@ export default function FactorDetailClient({ name }: { name: string }) {
     (async () => {
       try {
         const [m, r, h] = await Promise.all([
-          fetchJson<MetaResp>(`${RAW_BASE}/data/factors/${encodeURIComponent(name)}.json`).catch(() => null),
-          fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(name)}.json`).catch(() => null),
-          fetchJson<HoldingsResp>(`${RAW_BASE}/data/holdings/${encodeURIComponent(name)}.json`).catch(() => null),
+          fetchJson<MetaResp>(`${RAW_BASE}/data/factors/${encodeURIComponent(safeName)}.json`).catch(() => null),
+          fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(safeName)}.json`).catch(() => null),
+          fetchJson<HoldingsResp>(`${RAW_BASE}/data/holdings/${encodeURIComponent(safeName)}.json`).catch(() => null),
         ]);
         setMeta(m);
         setRet(r);
@@ -62,7 +76,7 @@ export default function FactorDetailClient({ name }: { name: string }) {
         setMonth("");
       }
     })();
-  }, [name]);
+  }, [safeName]);
 
   const holdingsList = useMemo(() => {
     if (!hold || !month) return [];
@@ -74,7 +88,7 @@ export default function FactorDetailClient({ name }: { name: string }) {
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-extrabold tracking-tight text-slate-900">{name}</h1>
+            <h1 className="text-xl font-extrabold tracking-tight text-slate-900">{safeName}</h1>
             <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700 border border-blue-200">
               因子詳情
             </span>
@@ -90,7 +104,7 @@ export default function FactorDetailClient({ name }: { name: string }) {
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-bold text-slate-800 mb-3">選股邏輯</h2>
           {!meta ? (
-            <div className="text-slate-400">找不到 factors/{name}.json（可能尚未匯出）</div>
+            <div className="text-slate-400">找不到 factors/{safeName}.json（可能尚未匯出）</div>
           ) : (
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -142,7 +156,7 @@ export default function FactorDetailClient({ name }: { name: string }) {
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-bold text-slate-800 mb-3">歷史表現（累積報酬）</h2>
           {!ret?.dates?.length ? (
-            <div className="text-slate-400">找不到 returns/{name}.json（可能尚未匯出）</div>
+            <div className="text-slate-400">找不到 returns/{safeName}.json（可能尚未匯出）</div>
           ) : (
             <div className="w-full h-[380px]">
               <Plot
@@ -152,7 +166,7 @@ export default function FactorDetailClient({ name }: { name: string }) {
                     y: toCum(ret.ret || []),
                     type: "scatter",
                     mode: "lines",
-                    name,
+                    safeName,
                   },
                 ] as any}
                 layout={{
@@ -190,7 +204,7 @@ export default function FactorDetailClient({ name }: { name: string }) {
           </div>
 
           {!hold ? (
-            <div className="text-slate-400">找不到 holdings/{name}.json（指數或尚未匯出）</div>
+            <div className="text-slate-400">找不到 holdings/{safeName}.json（指數或尚未匯出）</div>
           ) : (
             <>
               <div className="text-xs text-slate-500 mb-3">
