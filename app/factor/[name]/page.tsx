@@ -11,22 +11,35 @@ type ManifestResp = { factors: string[] };
 // ✅ 靜態匯出必須提供所有 [name]
 export async function generateStaticParams() {
   const url = `${RAW_BASE}/data/manifest.json`;
-  const res = await fetch(url);
-  if (!res.ok) return [];
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
 
-  const m = (await res.json()) as ManifestResp;
-  const factors = (m?.factors || [])
-    .filter((x) => typeof x === "string" && x.trim().length > 0)
-    .map((name) => ({ name }));
+    const m = (await res.json()) as ManifestResp;
+    const factors = (m?.factors || [])
+      .filter((x) => typeof x === "string" && x.trim().length > 0)
+      .map((name) => ({ name }));
 
-  return factors;
+    return factors;
+  } catch (e) {
+    console.error("Generate params failed:", e);
+    return [];
+  }
 }
 
-// （可選）更保險：避免被判定成 dynamic
 export const dynamic = "force-static";
 
-export default function Page({ params }: { params: { name: string } }) {
-  // params.name 在 Next 會是已解碼或半解碼，這裡統一 decode 一次
-  const name = decodeURIComponent(params.name);
+// 🔴 重點修改在這裡：Next.js 15 中 params 是 Promise
+type Props = {
+  params: Promise<{ name: string }>;
+};
+
+export default async function Page({ params }: Props) {
+  // 1. 等待 params 解析
+  const resolvedParams = await params;
+  
+  // 2. 解析後再取 name
+  const name = decodeURIComponent(resolvedParams.name);
+
   return <FactorDetailClient name={name} />;
 }

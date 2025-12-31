@@ -39,9 +39,19 @@ export default function FactorDetailClient({ name }: { name?: string }) {
   const pathname = usePathname();
 
   // ✅ 保險：props 沒帶到就從 URL 抓最後一段
-  const safeName =
-    (name && name.trim().length ? name : decodeURIComponent((pathname || "").split("/").pop() || "")) || "";
-
+  const safeName = useMemo(() => {
+    // 1. 優先使用傳入的 name，但過濾掉字串 "undefined" 或空值
+    if (name && name !== "undefined" && name.trim().length > 0) {
+      return name;
+    }
+    
+    // 2. 如果 name 有問題，就自己去抓網址 (Fallback)
+    if (!pathname) return "";
+    const segments = pathname.split("/").filter(Boolean); // 過濾掉空字串
+    const last = segments.pop();
+    return last ? decodeURIComponent(last) : "";
+  }, [name, pathname]);
+  
   const [meta, setMeta] = useState<MetaResp | null>(null);
   const [ret, setRet] = useState<ReturnsResp | null>(null);
   const [hold, setHold] = useState<HoldingsResp | null>(null);
