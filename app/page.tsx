@@ -274,6 +274,7 @@ export default function Home() {
   }, [gwSelected]);
 
   // Load GW Benchmark
+
   useEffect(() => {
     (async () => {
       if (!gwBenchmark) {
@@ -283,12 +284,20 @@ export default function Home() {
       try {
         const d = await fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(gwBenchmark)}.json`);
         const normalized: ReturnsResp = { factor: d.factor || d.name || gwBenchmark, dates: d.dates || [], ret: d.ret || [] };
-        setBenchSeries(normalized);
+        
+        // ▼▼▼ 修改開始 ▼▼▼
+        // 使用 clipByRange 強制將數據裁剪到 2003-01-01 之後
+        // 你也可以把 "2003-01-01" 換成變數 start，這樣就會跟著上方日期選擇器連動
+        const clipped = clipByRange(normalized, "2003-01-01", "2029-12-31");
+        
+        setBenchSeries(clipped); 
+        // ▲▲▲ 修改結束 (原本是 setBenchSeries(normalized)) ▲▲▲
+
       } catch (e) {
         setBenchSeries(null);
       }
     })();
-  }, [gwBenchmark]);
+  }, [gwBenchmark]); // 如果你上面改用 start 變數，記得這裡要改成 [gwBenchmark, start]
 
   // --- Helpers for Select All ---
   
