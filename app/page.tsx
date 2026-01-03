@@ -323,8 +323,8 @@ export default function Home() {
     const troughY = x.map((f) => safeNum((gwData[f]?.summary?.trough as any)?.[key] ?? null));
     const peakY = x.map((f) => safeNum((gwData[f]?.summary?.peak as any)?.[key] ?? null));
     return [
-      { name: `波谷後 +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
-      { name: `波峰後 +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
+      { name: `trough +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
+      { name: `peak +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
     ];
   }, [gwSelected, gwData, gwHorizon]);
 
@@ -369,7 +369,7 @@ export default function Home() {
       {
         type: "scatter",
         mode: "markers",
-        name: "波峰 (Peak)",
+        name: "Peak",
         x: peaksX,
         y: peaksY,
         marker: { symbol: "triangle-down", size: 10, color: "#f43f5e", line: { width: 1, color: "#fff" } },
@@ -377,7 +377,7 @@ export default function Home() {
       {
         type: "scatter",
         mode: "markers",
-        name: "波谷 (Trough)",
+        name: "Trough",
         x: troughX,
         y: troughY,
         marker: { symbol: "triangle-up", size: 10, color: "#10b981", line: { width: 1, color: "#fff" } },
@@ -766,12 +766,12 @@ export default function Home() {
                 <thead className="bg-slate-50 text-slate-600 font-semibold">
                   <tr>
                     <th className="px-4 py-3">因子名稱</th>
-                    <th className="px-4 py-3 text-emerald-600">波谷後 +6M</th>
-                    <th className="px-4 py-3 text-emerald-600">波谷後 +12M</th>
-                    <th className="px-4 py-3 text-rose-600">波峰後 +6M</th>
-                    <th className="px-4 py-3 text-rose-600">波峰後 +12M</th>
-                    <th className="px-4 py-3">波谷次數</th>
-                    <th className="px-4 py-3">波峰次數</th>
+                    <th className="px-4 py-3 text-emerald-600">Trough +6M</th>
+                    <th className="px-4 py-3 text-emerald-600">Trough +12M</th>
+                    <th className="px-4 py-3 text-rose-600">Peak +6M</th>
+                    <th className="px-4 py-3 text-rose-600">Peak +12M</th>
+                    <th className="px-4 py-3">Trough 次數</th>
+                    <th className="px-4 py-3">Peak 次數</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -802,7 +802,7 @@ export default function Home() {
               <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-white">訊號歷史回測</h3>
-                  <p className="text-xs text-slate-400">藍線：基準指數｜紅▼：波峰訊號｜綠▲：波谷訊號</p>
+                  <p className="text-xs text-slate-400">藍線：基準指數｜紅▼：Peak 訊號｜綠▲：Trough 訊號</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400 font-bold uppercase">基準指數</span>
