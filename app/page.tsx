@@ -960,7 +960,7 @@ export default function Home() {
                     const pk = d?.summary?.peak;
                     return (
                       <tr key={`gw-row-${f}`} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-medium">{f}</td>
+                        <td className="px-4 py-3 font-medium">{getFactorLabel(f)}</td>
                         <td className="px-4 py-3">{fmtPct(tr?.avg_6m ?? null)}</td>
                         <td className="px-4 py-3">{fmtPct(tr?.avg_12m ?? null)}</td>
                         <td className="px-4 py-3">{fmtPct(pk?.avg_6m ?? null)}</td>
@@ -992,7 +992,7 @@ export default function Home() {
                   >
                     {factors.map((f) => (
                       <option key={`bench-${f}`} value={f}>
-                        {f}
+                        {getFactorLabel(f)}
                       </option>
                     ))}
                   </select>
