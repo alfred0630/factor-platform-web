@@ -205,6 +205,7 @@ export default function Home() {
   // ===== 近 20 個交易日詳細表 =====
   const [recent20Table, setRecent20Table] = useState<Recent20Table | null>(null);
   const [recent20Loading, setRecent20Loading] = useState(false);
+  const [recent20Expanded, setRecent20Expanded] = useState(false);
 
   // ===== Global Wave =====
   const [gwSelected, setGwSelected] = useState<string[]>(["Top200", "PE_low", "PB_low"]);
@@ -786,18 +787,32 @@ export default function Home() {
         {/* === 新增：近 20 個交易日因子報酬率詳細表 === */}
         <section className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-12">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">近 20 個交易日因子報酬率詳細表</h2>
+            <div className="flex-1">
+              <button
+                onClick={() => setRecent20Expanded(!recent20Expanded)}
+                className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+              >
+                <svg
+                  className={`w-5 h-5 text-slate-600 transition-transform ${recent20Expanded ? "rotate-90" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <h2 className="text-2xl font-bold text-slate-900">近 20 個交易日因子報酬率詳細表</h2>
+              </button>
               <p className="text-sm text-slate-500 mt-1">顯示所有因子最近 20 個有交易日的每日報酬率，缺值以 - 表示</p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-            {recent20Loading ? (
-              <div className="h-[320px] flex items-center justify-center text-slate-400 animate-pulse">資料讀取中...</div>
-            ) : !recent20Table?.dates?.length ? (
-              <div className="h-[320px] flex items-center justify-center text-slate-400">暫無資料</div>
-            ) : (
+          {recent20Expanded && (
+            <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+              {recent20Loading ? (
+                <div className="h-[320px] flex items-center justify-center text-slate-400 animate-pulse">資料讀取中...</div>
+              ) : !recent20Table?.dates?.length ? (
+                <div className="h-[320px] flex items-center justify-center text-slate-400">暫無資料</div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
@@ -841,7 +856,8 @@ export default function Home() {
                 </table>
               </div>
             )}
-          </div>
+            </div>
+          )}
         </section>
 
         {/* === 第三部分：Global Wave (Distinct Section) === */}
