@@ -745,7 +745,7 @@ export default function Home() {
                     const r = rankedReturns?.[col]?.[row];
                     z[row][col] = factorToCode[fname] ?? -1;
                     const pct = r === null || r === undefined ? "NA" : `${((r as number) * 100).toFixed(2)}%`;
-                    text[row][col] = `<span style="font-weight:bold">${getFactorLabel(fname)}</span><br>${pct}`;
+                    text[row][col] = `<span style="font-weight:500">${getFactorLabel(fname)}</span><br>${pct}`;
                   }
                 }
                 const y = Array.from({ length: N }, (_, i) => i + 1);
