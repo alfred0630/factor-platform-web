@@ -40,6 +40,11 @@ type GlobalWaveResp = {
   events?: { type: "trough" | "peak"; date: string; r_6m: number | null; r_12m: number | null }[];
 };
 
+type Recent20Table = {
+  dates: string[];
+  rows: Record<string, (number | null)[]>;
+};
+
 function toCum(retArr: number[]) {
   let v = 1;
   return retArr.map((r) => (v *= 1 + r));
@@ -167,12 +172,16 @@ export default function Home() {
   const [factors, setFactors] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>(["Top200"]);
   const [start, setStart] = useState("2003-01-01");
-  const [end, setEnd] = useState("2025-12-31");
+  const [end, setEnd] = useState("2026-12-31");
   const [rf, setRf] = useState(0.0);
 
   const [series, setSeries] = useState<Record<string, ReturnsResp>>({});
   const [metrics, setMetrics] = useState<MetricRow[]>([]);
   const [heatmap, setHeatmap] = useState<any>(null);
+
+  // ===== 近 20 個交易日詳細表 =====
+  const [recent20Table, setRecent20Table] = useState<Recent20Table | null>(null);
+  const [recent20Loading, setRecent20Loading] = useState(false);
 
   // ===== Global Wave =====
   const [gwSelected, setGwSelected] = useState<string[]>(["Top200", "PE_low", "PB_low"]);
@@ -247,6 +256,70 @@ export default function Home() {
     })();
   }, []);
 
+  // ===== Load Recent 20 Trading Days Table =====
+  useEffect(() => {
+    (async () => {
+      if (!factors.length) {
+        setRecent20Table(null);
+        return;
+      }
+
+      setRecent20Loading(true);
+      try {
+        const pairs = await Promise.all(
+          factors.map(async (f) => {
+            const d = await fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(f)}.json`);
+            const normalized: ReturnsResp = {
+              factor: d.factor || d.name || f,
+              dates: d.dates || [],
+              ret: d.ret || [],
+            };
+            return [f, normalized] as const;
+          })
+        );
+
+        // 收集所有因子的日期，取最近 20 個有交易日
+        const allDatesSet = new Set<string>();
+        for (const [, d] of pairs) {
+          for (const dt of d.dates || []) {
+            if (dt) allDatesSet.add(dt);
+          }
+        }
+
+        const allDates = Array.from(allDatesSet).sort((a, b) => {
+          const ta = parseDate(a)?.getTime() ?? 0;
+          const tb = parseDate(b)?.getTime() ?? 0;
+          return ta - tb;
+        });
+
+        const last20Dates = allDates.slice(-20);
+
+        const rows: Record<string, (number | null)[]> = {};
+        for (const [factor, data] of pairs) {
+          const dateToRet = new Map<string, number>();
+          for (let i = 0; i < data.dates.length; i++) {
+            const dt = data.dates[i];
+            const rv = data.ret[i];
+            if (dt) dateToRet.set(dt, rv);
+          }
+          rows[factor] = last20Dates.map((dt) => {
+            const v = dateToRet.get(dt);
+            return v === undefined || Number.isNaN(v) ? null : v;
+          });
+        }
+
+        setRecent20Table({
+          dates: last20Dates,
+          rows,
+        });
+      } catch (e) {
+        setRecent20Table(null);
+      } finally {
+        setRecent20Loading(false);
+      }
+    })();
+  }, [factors]);
+
   // Load Global Wave Data
   useEffect(() => {
     (async () => {
@@ -274,7 +347,6 @@ export default function Home() {
   }, [gwSelected]);
 
   // Load GW Benchmark
-
   useEffect(() => {
     (async () => {
       if (!gwBenchmark) {
@@ -284,15 +356,14 @@ export default function Home() {
       try {
         const d = await fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(gwBenchmark)}.json`);
         const normalized: ReturnsResp = { factor: d.factor || d.name || gwBenchmark, dates: d.dates || [], ret: d.ret || [] };
-        
+
         // ▼▼▼ 修改開始 ▼▼▼
         // 使用 clipByRange 強制將數據裁剪到 2003-01-01 之後
         // 你也可以把 "2003-01-01" 換成變數 start，這樣就會跟著上方日期選擇器連動
         const clipped = clipByRange(normalized, "2003-01-01", "2029-12-31");
-        
-        setBenchSeries(clipped); 
-        // ▲▲▲ 修改結束 (原本是 setBenchSeries(normalized)) ▲▲▲
 
+        setBenchSeries(clipped);
+        // ▲▲▲ 修改結束 (原本是 setBenchSeries(normalized)) ▲▲▲
       } catch (e) {
         setBenchSeries(null);
       }
@@ -300,7 +371,7 @@ export default function Home() {
   }, [gwBenchmark]); // 如果你上面改用 start 變數，記得這裡要改成 [gwBenchmark, start]
 
   // --- Helpers for Select All ---
-  
+
   // 1. 左側控制面板的全選邏輯
   const isAllSelected = factors.length > 0 && selected.length === factors.length;
   const toggleAll = () => {
@@ -395,6 +466,11 @@ export default function Home() {
     return { traces, shapes };
   }, [benchSeries, gwData, gwBenchmark]);
 
+  const recent20DisplayDates = useMemo(() => {
+    if (!recent20Table?.dates?.length) return [];
+    return [...recent20Table.dates].reverse();
+  }, [recent20Table]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100">
       {/* Header - Sticky with Blur */}
@@ -474,7 +550,7 @@ export default function Home() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                         <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </Link>
                   </label>
@@ -574,7 +650,7 @@ export default function Home() {
                             {row.factor}
                             {/* 小圖示，暗示可點擊 */}
                             <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                             </svg>
                           </Link>
                         </td>
@@ -673,6 +749,67 @@ export default function Home() {
           </div>
         </section>
 
+        {/* === 新增：近 20 個交易日因子報酬率詳細表 === */}
+        <section className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-12">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">近 20 個交易日因子報酬率詳細表</h2>
+              <p className="text-sm text-slate-500 mt-1">顯示所有因子最近 20 個有交易日的每日報酬率，缺值以 - 表示</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+            {recent20Loading ? (
+              <div className="h-[320px] flex items-center justify-center text-slate-400 animate-pulse">資料讀取中...</div>
+            ) : !recent20Table?.dates?.length ? (
+              <div className="h-[320px] flex items-center justify-center text-slate-400">暫無資料</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold sticky left-0 z-10 bg-slate-50 border-r border-slate-200 whitespace-nowrap">
+                        日期
+                      </th>
+                      {factors.map((f) => (
+                        <th key={`recent-head-${f}`} className="px-4 py-3 font-semibold whitespace-nowrap">
+                          {f}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {recent20DisplayDates.map((dt) => {
+                      const originalIdx = recent20Table.dates.indexOf(dt);
+                      return (
+                        <tr key={`recent-row-${dt}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 font-medium text-slate-700 sticky left-0 z-10 bg-white border-r border-slate-100 whitespace-nowrap">
+                            {dt}
+                          </td>
+                          {factors.map((f) => {
+                            const v = recent20Table.rows[f]?.[originalIdx] ?? null;
+                            const isMissing = v === null || v === undefined || Number.isNaN(v as any);
+                            return (
+                              <td
+                                key={`recent-cell-${dt}-${f}`}
+                                className={`px-4 py-3 whitespace-nowrap ${
+                                  isMissing ? "text-slate-400" : v >= 0 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"
+                                }`}
+                              >
+                                {isMissing ? "-" : `${(v * 100).toFixed(2)}%`}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* === 第三部分：Global Wave (Distinct Section) === */}
         <section className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-100 pb-6">
@@ -708,7 +845,6 @@ export default function Home() {
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
                 <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">比較因子</h3>
                 <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 space-y-1">
-                  
                   {/* ✅ Global Wave 全選按鈕：同樣改為 Checkbox Row，跟上面保持一致 */}
                   <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border-b border-slate-200 mb-1">
                     <input
