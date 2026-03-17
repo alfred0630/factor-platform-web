@@ -76,6 +76,27 @@ const FACTOR_COLORS: Record<string, string> = {
   Top200: "#2563eb",
 };
 
+// === 因子中文標籤 ===
+const FACTOR_LABELS: Record<string, string> = {
+  EPS_growth: "EPS 動能",
+  High_yield: "高股息",
+  High_yoy: "營收成長",
+  Low_beta: "低 Beta",
+  Margin_growth: "利潤率成長",
+  Momentum_01: "價格動能1m",
+  Momentum_03: "價格動能3m",
+  Momentum_06: "價格動能6m",
+  PB_low: "低PB",
+  PE_low: "低PE",
+  Top200: "市值前 200",
+  TWA00: "加權指數",
+};
+
+// === 取得因子標籤的輔助函數 ===
+function getFactorLabel(factorName: string): string {
+  return FACTOR_LABELS[factorName] || factorName;
+}
+
 function makeDiscreteColorscale(colorList: string[]) {
   const n = colorList.length;
   const cs: [number, string][] = [];
@@ -394,16 +415,16 @@ export default function Home() {
       .map((f) => {
         const d = series[f];
         if (!d || !d.dates?.length) return null;
-        return { x: d.dates, y: toCum(d.ret || []), type: "scatter", mode: "lines", name: f };
+        return { x: d.dates, y: toCum(d.ret || []), type: "scatter", mode: "lines", name: getFactorLabel(f) };
       })
       .filter(Boolean);
   }, [series, selected]);
 
   const gwBar = useMemo(() => {
-    const x = gwSelected;
+    const x = gwSelected.map((f) => getFactorLabel(f));
     const key = gwHorizon === 6 ? "avg_6m" : "avg_12m";
-    const troughY = x.map((f) => safeNum((gwData[f]?.summary?.trough as any)?.[key] ?? null));
-    const peakY = x.map((f) => safeNum((gwData[f]?.summary?.peak as any)?.[key] ?? null));
+    const troughY = gwSelected.map((f) => safeNum((gwData[f]?.summary?.trough as any)?.[key] ?? null));
+    const peakY = gwSelected.map((f) => safeNum((gwData[f]?.summary?.peak as any)?.[key] ?? null));
     return [
       { name: `trough +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
       { name: `peak +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
@@ -447,7 +468,7 @@ export default function Home() {
       line: { width: 1, color: e.type === "peak" ? "rgba(244,63,94,0.3)" : "rgba(16,185,129,0.3)", dash: "dot" },
     }));
     const traces = [
-      { type: "scatter", mode: "lines", name: `基準指數 (${gwBenchmark})`, x, y, line: { width: 2, color: "#3b82f6" } },
+      { type: "scatter", mode: "lines", name: `基準指數 (${getFactorLabel(gwBenchmark)})`, x, y, line: { width: 2, color: "#3b82f6" } },
       {
         type: "scatter",
         mode: "markers",
@@ -542,7 +563,7 @@ export default function Home() {
                           else setSelected(selected.filter((x) => x !== f));
                         }}
                       />
-                      <span className="text-sm font-medium text-slate-700">{f}</span>
+                      <span className="text-sm font-medium text-slate-700">{getFactorLabel(f)}</span>
                     </div>
 
                     <Link
@@ -650,7 +671,7 @@ export default function Home() {
                             href={`/factor/${encodeURIComponent(row.factor)}`}
                             className="hover:underline text-slate-900 flex items-center gap-1"
                           >
-                            {row.factor}
+                            {getFactorLabel(row.factor)}
                             <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path
                                 strokeLinecap="round"
@@ -723,7 +744,7 @@ export default function Home() {
                     const r = rankedReturns?.[col]?.[row];
                     z[row][col] = factorToCode[fname] ?? -1;
                     const pct = r === null || r === undefined ? "NA" : `${((r as number) * 100).toFixed(2)}%`;
-                    text[row][col] = `<span style="font-weight:bold">${fname}</span><br>${pct}`;
+                    text[row][col] = `<span style="font-weight:bold">${getFactorLabel(fname)}</span><br>${pct}`;
                   }
                 }
                 const y = Array.from({ length: N }, (_, i) => i + 1);
@@ -786,7 +807,7 @@ export default function Home() {
                       </th>
                       {factors.map((f) => (
                         <th key={`recent-head-${f}`} className="px-4 py-3 font-semibold whitespace-nowrap">
-                          {f}
+                          {getFactorLabel(f)}
                         </th>
                       ))}
                     </tr>
@@ -883,7 +904,7 @@ export default function Home() {
                           else setGwSelected(gwSelected.filter((x) => x !== f));
                         }}
                       />
-                      <span className="text-sm font-medium text-slate-700">{f}</span>
+                      <span className="text-sm font-medium text-slate-700">{getFactorLabel(f)}</span>
                     </label>
                   ))}
                 </div>
