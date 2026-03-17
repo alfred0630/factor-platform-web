@@ -25,6 +25,7 @@ type ReturnsResp = {
 
 type MetricRow = {
   factor: string;
+  period_return: number;
   ann_return: number;
   ann_vol: number;
   sharpe: number | null;
@@ -122,14 +123,15 @@ function maxDrawdownFromReturns(ret: number[]) {
   }
   return maxdd;
 }
-
 function calcMetricsFromDailyRet(factor: string, ret: number[], rfAnnual: number, freq = 252): MetricRow {
   if (!ret.length) {
-    return { factor, ann_return: 0, ann_vol: 0, sharpe: null, maxdd: 0 };
+    return { factor, period_return: 0, ann_return: 0, ann_vol: 0, sharpe: null, maxdd: 0 };
   }
 
   let nav = 1;
   for (const r of ret) nav *= 1 + r;
+
+  const period_return = nav - 1;
   const n = ret.length;
   const ann_return = Math.pow(nav, freq / n) - 1;
 
@@ -146,7 +148,7 @@ function calcMetricsFromDailyRet(factor: string, ret: number[], rfAnnual: number
   const sharpe = exVol === 0 ? null : (exMean * freq) / exVol;
   const maxdd = maxDrawdownFromReturns(ret);
 
-  return { factor, ann_return, ann_vol, sharpe, maxdd };
+  return { factor, period_return, ann_return, ann_vol, sharpe, maxdd };
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -633,6 +635,7 @@ export default function Home() {
                   <thead className="bg-white text-slate-500 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-3 font-semibold">因子名稱</th>
+                      <th className="px-6 py-3 font-semibold">區間報酬</th>
                       <th className="px-6 py-3 font-semibold">年化報酬</th>
                       <th className="px-6 py-3 font-semibold">年化波動</th>
                       <th className="px-6 py-3 font-semibold">夏普比率</th>
@@ -648,29 +651,39 @@ export default function Home() {
                             className="hover:underline text-slate-900 flex items-center gap-1"
                           >
                             {row.factor}
-                            {/* 小圖示，暗示可點擊 */}
                             <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                              />
                             </svg>
                           </Link>
+                        </td>
+
+                        <td className={`px-6 py-3 font-bold ${row.period_return >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                          {(row.period_return * 100).toFixed(2)}%
                         </td>
 
                         <td className={`px-6 py-3 font-bold ${row.ann_return >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                           {(row.ann_return * 100).toFixed(2)}%
                         </td>
+
                         <td className="px-6 py-3 text-slate-600">{(row.ann_vol * 100).toFixed(2)}%</td>
                         <td className="px-6 py-3 text-slate-600">{row.sharpe === null ? "-" : row.sharpe.toFixed(2)}</td>
                         <td className="px-6 py-3 text-rose-600">{(row.maxdd * 100).toFixed(2)}%</td>
                       </tr>
                     ))}
+
                     {metrics.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                        <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
                           暫無資料
                         </td>
                       </tr>
                     )}
-                  </tbody>
+                  </tbody>                  
                 </table>
               </div>
             </section>
