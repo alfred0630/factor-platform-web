@@ -25,7 +25,6 @@ type ReturnsResp = {
 
 type MetricRow = {
   factor: string;
-  period_return: number;
   ann_return: number;
   ann_vol: number;
   sharpe: number | null;
@@ -41,13 +40,13 @@ type GlobalWaveResp = {
   events?: { type: "trough" | "peak"; date: string; r_6m: number | null; r_12m: number | null }[];
 };
 
-type Recent20Table = {
-  dates: string[];
-  rows: Record<string, (number | null)[]>;
-};
-
 function toCum(retArr: number[]) {
   let v = 1;
+  return retArr.map((r) => (v *= 1 + r));
+}
+
+function toBase100(retArr: number[]) {
+  let v = 100;
   return retArr.map((r) => (v *= 1 + r));
 }
 
@@ -75,27 +74,6 @@ const FACTOR_COLORS: Record<string, string> = {
   Low_beta: "#e377c2",
   Top200: "#2563eb",
 };
-
-// === 因子中文標籤 ===
-const FACTOR_LABELS: Record<string, string> = {
-  EPS_growth: "EPS 動能",
-  High_yield: "高股息",
-  High_yoy: "營收成長",
-  Low_beta: "低 Beta",
-  Margin_growth: "利潤率成長",
-  Momentum_01: "價格動能1m",
-  Momentum_03: "價格動能3m",
-  Momentum_06: "價格動能6m",
-  PB_low: "低PB",
-  PE_low: "低PE",
-  Top200: "市值前 200",
-  TWA00: "加權指數",
-};
-
-// === 取得因子標籤的輔助函數 ===
-function getFactorLabel(factorName: string): string {
-  return FACTOR_LABELS[factorName] || factorName;
-}
 
 function makeDiscreteColorscale(colorList: string[]) {
   const n = colorList.length;
@@ -144,15 +122,14 @@ function maxDrawdownFromReturns(ret: number[]) {
   }
   return maxdd;
 }
+
 function calcMetricsFromDailyRet(factor: string, ret: number[], rfAnnual: number, freq = 252): MetricRow {
   if (!ret.length) {
-    return { factor, period_return: 0, ann_return: 0, ann_vol: 0, sharpe: null, maxdd: 0 };
+    return { factor, ann_return: 0, ann_vol: 0, sharpe: null, maxdd: 0 };
   }
 
   let nav = 1;
   for (const r of ret) nav *= 1 + r;
-
-  const period_return = nav - 1;
   const n = ret.length;
   const ann_return = Math.pow(nav, freq / n) - 1;
 
@@ -169,7 +146,7 @@ function calcMetricsFromDailyRet(factor: string, ret: number[], rfAnnual: number
   const sharpe = exVol === 0 ? null : (exMean * freq) / exVol;
   const maxdd = maxDrawdownFromReturns(ret);
 
-  return { factor, period_return, ann_return, ann_vol, sharpe, maxdd };
+  return { factor, ann_return, ann_vol, sharpe, maxdd };
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -191,21 +168,37 @@ async function listFactorsFromGithub(): Promise<string[]> {
   return names;
 }
 
+function CopyButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 transition"
+      title="複製到剪貼簿"
+      type="button"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M8 16h8M8 12h8m-6-8h4a2 2 0 012 2v2H6V6a2 2 0 012-2zM6 10h12v10a2 2 0 01-2 2H8a2 2 0 01-2-2V10z"
+        />
+      </svg>
+    </button>
+  );
+}
+
 export default function Home() {
   const [factors, setFactors] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>(["Top200"]);
   const [start, setStart] = useState("2003-01-01");
-  const [end, setEnd] = useState("2026-12-31");
+  const [end, setEnd] = useState("2025-12-31");
   const [rf, setRf] = useState(0.0);
+  const [lookbackDays, setLookbackDays] = useState(20);
 
   const [series, setSeries] = useState<Record<string, ReturnsResp>>({});
   const [metrics, setMetrics] = useState<MetricRow[]>([]);
   const [heatmap, setHeatmap] = useState<any>(null);
-
-  // ===== 近 20 個交易日詳細表 =====
-  const [recent20Table, setRecent20Table] = useState<Recent20Table | null>(null);
-  const [recent20Loading, setRecent20Loading] = useState(false);
-  const [recent20Expanded, setRecent20Expanded] = useState(false);
 
   // ===== Global Wave =====
   const [gwSelected, setGwSelected] = useState<string[]>(["Top200", "PE_low", "PB_low"]);
@@ -214,6 +207,72 @@ export default function Home() {
   const [gwHorizon, setGwHorizon] = useState<6 | 12>(6);
   const [gwBenchmark, setGwBenchmark] = useState<string>("Top200");
   const [benchSeries, setBenchSeries] = useState<ReturnsResp | null>(null);
+
+  function copyToClipboard(text: string) {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+  }
+
+  function buildReturnTableTSV(data: Record<string, ReturnsResp>, factorNames: string[], lookback: number) {
+    if (!factorNames.length) return "";
+    const validFactors = factorNames.filter((f) => data[f]?.dates?.length && data[f]?.ret?.length);
+    if (!validFactors.length) return "";
+
+    const dateSet = new Set<string>();
+    for (const f of validFactors) {
+      const d = data[f];
+      const startIdx = Math.max(0, d.dates.length - lookback);
+      d.dates.slice(startIdx).forEach((dt) => dateSet.add(dt));
+    }
+
+    const dates = Array.from(dateSet).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const rows: string[] = [];
+    rows.push(["Date", ...validFactors].join("\t"));
+
+    for (const dt of dates) {
+      const row = [dt];
+      for (const f of validFactors) {
+        const d = data[f];
+        const idx = d.dates.indexOf(dt);
+        const val = idx >= 0 ? d.ret[idx] : undefined;
+        row.push(val !== undefined ? `${(val * 100).toFixed(4)}%` : "");
+      }
+      rows.push(row.join("\t"));
+    }
+
+    return rows.join("\n");
+  }
+
+  function buildBase100TSV(data: Record<string, ReturnsResp>, factorNames: string[], lookback: number) {
+    if (!factorNames.length) return "";
+    const validFactors = factorNames.filter((f) => data[f]?.dates?.length && data[f]?.ret?.length);
+    if (!validFactors.length) return "";
+
+    const dateSet = new Set<string>();
+    for (const f of validFactors) {
+      const d = data[f];
+      const startIdx = Math.max(0, d.dates.length - lookback);
+      d.dates.slice(startIdx).forEach((dt) => dateSet.add(dt));
+    }
+
+    const dates = Array.from(dateSet).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const rows: string[] = [];
+    rows.push(["Date", ...validFactors].join("\t"));
+
+    for (const dt of dates) {
+      const row = [dt];
+      for (const f of validFactors) {
+        const d = data[f];
+        const base100 = toBase100(d.ret);
+        const idx = d.dates.indexOf(dt);
+        const val = idx >= 0 ? base100[idx] : undefined;
+        row.push(val !== undefined ? val.toFixed(2) : "");
+      }
+      rows.push(row.join("\t"));
+    }
+
+    return rows.join("\n");
+  }
 
   // Load Factor List
   useEffect(() => {
@@ -280,70 +339,6 @@ export default function Home() {
     })();
   }, []);
 
-  // ===== Load Recent 20 Trading Days Table =====
-  useEffect(() => {
-    (async () => {
-      if (!factors.length) {
-        setRecent20Table(null);
-        return;
-      }
-
-      setRecent20Loading(true);
-      try {
-        const pairs = await Promise.all(
-          factors.map(async (f) => {
-            const d = await fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(f)}.json`);
-            const normalized: ReturnsResp = {
-              factor: d.factor || d.name || f,
-              dates: d.dates || [],
-              ret: d.ret || [],
-            };
-            return [f, normalized] as const;
-          })
-        );
-
-        // 收集所有因子的日期，取最近 20 個有交易日
-        const allDatesSet = new Set<string>();
-        for (const [, d] of pairs) {
-          for (const dt of d.dates || []) {
-            if (dt) allDatesSet.add(dt);
-          }
-        }
-
-        const allDates = Array.from(allDatesSet).sort((a, b) => {
-          const ta = parseDate(a)?.getTime() ?? 0;
-          const tb = parseDate(b)?.getTime() ?? 0;
-          return ta - tb;
-        });
-
-        const last20Dates = allDates.slice(-20);
-
-        const rows: Record<string, (number | null)[]> = {};
-        for (const [factor, data] of pairs) {
-          const dateToRet = new Map<string, number>();
-          for (let i = 0; i < data.dates.length; i++) {
-            const dt = data.dates[i];
-            const rv = data.ret[i];
-            if (dt) dateToRet.set(dt, rv);
-          }
-          rows[factor] = last20Dates.map((dt) => {
-            const v = dateToRet.get(dt);
-            return v === undefined || Number.isNaN(v) ? null : v;
-          });
-        }
-
-        setRecent20Table({
-          dates: last20Dates,
-          rows,
-        });
-      } catch (e) {
-        setRecent20Table(null);
-      } finally {
-        setRecent20Loading(false);
-      }
-    })();
-  }, [factors]);
-
   // Load Global Wave Data
   useEffect(() => {
     (async () => {
@@ -380,22 +375,15 @@ export default function Home() {
       try {
         const d = await fetchJson<ReturnsResp>(`${RAW_BASE}/data/returns/${encodeURIComponent(gwBenchmark)}.json`);
         const normalized: ReturnsResp = { factor: d.factor || d.name || gwBenchmark, dates: d.dates || [], ret: d.ret || [] };
-
-        // ▼▼▼ 修改開始 ▼▼▼
-        // 使用 clipByRange 強制將數據裁剪到 2003-01-01 之後
-        // 你也可以把 "2003-01-01" 換成變數 start，這樣就會跟著上方日期選擇器連動
-        const clipped = clipByRange(normalized, "2003-01-01", "2029-12-31");
-
-        setBenchSeries(clipped);
-        // ▲▲▲ 修改結束 (原本是 setBenchSeries(normalized)) ▲▲▲
+        setBenchSeries(normalized);
       } catch (e) {
         setBenchSeries(null);
       }
     })();
-  }, [gwBenchmark]); // 如果你上面改用 start 變數，記得這裡要改成 [gwBenchmark, start]
+  }, [gwBenchmark]);
 
   // --- Helpers for Select All ---
-
+  
   // 1. 左側控制面板的全選邏輯
   const isAllSelected = factors.length > 0 && selected.length === factors.length;
   const toggleAll = () => {
@@ -416,19 +404,54 @@ export default function Home() {
       .map((f) => {
         const d = series[f];
         if (!d || !d.dates?.length) return null;
-        return { x: d.dates, y: toCum(d.ret || []), type: "scatter", mode: "lines", name: getFactorLabel(f) };
+        return { x: d.dates, y: toCum(d.ret || []), type: "scatter", mode: "lines", name: f };
       })
       .filter(Boolean);
   }, [series, selected]);
 
+  const recentReturnChartData = useMemo(() => {
+    return selected
+      .map((f) => {
+        const d = series[f];
+        if (!d || !d.dates?.length || !d.ret?.length) return null;
+        const startIdx = Math.max(0, d.dates.length - lookbackDays);
+        return {
+          x: d.dates.slice(startIdx),
+          y: d.ret.slice(startIdx),
+          type: "scatter",
+          mode: "lines",
+          name: f,
+        };
+      })
+      .filter(Boolean);
+  }, [series, selected, lookbackDays]);
+
+  const recentBase100ChartData = useMemo(() => {
+    return selected
+      .map((f) => {
+        const d = series[f];
+        if (!d || !d.dates?.length || !d.ret?.length) return null;
+        const base100Series = toBase100(d.ret);
+        const startIdx = Math.max(0, d.dates.length - lookbackDays);
+        return {
+          x: d.dates.slice(startIdx),
+          y: base100Series.slice(startIdx),
+          type: "scatter",
+          mode: "lines",
+          name: f,
+        };
+      })
+      .filter(Boolean);
+  }, [series, selected, lookbackDays]);
+
   const gwBar = useMemo(() => {
-    const x = gwSelected.map((f) => getFactorLabel(f));
+    const x = gwSelected;
     const key = gwHorizon === 6 ? "avg_6m" : "avg_12m";
-    const troughY = gwSelected.map((f) => safeNum((gwData[f]?.summary?.trough as any)?.[key] ?? null));
-    const peakY = gwSelected.map((f) => safeNum((gwData[f]?.summary?.peak as any)?.[key] ?? null));
+    const troughY = x.map((f) => safeNum((gwData[f]?.summary?.trough as any)?.[key] ?? null));
+    const peakY = x.map((f) => safeNum((gwData[f]?.summary?.peak as any)?.[key] ?? null));
     return [
-      { name: `trough +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
-      { name: `peak +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
+      { name: `波谷後 +${gwHorizon}M`, y: troughY, x, type: "bar", marker: { color: "#10b981" } },
+      { name: `波峰後 +${gwHorizon}M`, y: peakY, x, type: "bar", marker: { color: "#f43f5e" } },
     ];
   }, [gwSelected, gwData, gwHorizon]);
 
@@ -469,11 +492,11 @@ export default function Home() {
       line: { width: 1, color: e.type === "peak" ? "rgba(244,63,94,0.3)" : "rgba(16,185,129,0.3)", dash: "dot" },
     }));
     const traces = [
-      { type: "scatter", mode: "lines", name: `基準指數 (${getFactorLabel(gwBenchmark)})`, x, y, line: { width: 2, color: "#3b82f6" } },
+      { type: "scatter", mode: "lines", name: `基準指數 (${gwBenchmark})`, x, y, line: { width: 2, color: "#3b82f6" } },
       {
         type: "scatter",
         mode: "markers",
-        name: "Peak",
+        name: "波峰 (Peak)",
         x: peaksX,
         y: peaksY,
         marker: { symbol: "triangle-down", size: 10, color: "#f43f5e", line: { width: 1, color: "#fff" } },
@@ -481,7 +504,7 @@ export default function Home() {
       {
         type: "scatter",
         mode: "markers",
-        name: "Trough",
+        name: "波谷 (Trough)",
         x: troughX,
         y: troughY,
         marker: { symbol: "triangle-up", size: 10, color: "#10b981", line: { width: 1, color: "#fff" } },
@@ -489,11 +512,6 @@ export default function Home() {
     ];
     return { traces, shapes };
   }, [benchSeries, gwData, gwBenchmark]);
-
-  const recent20DisplayDates = useMemo(() => {
-    if (!recent20Table?.dates?.length) return [];
-    return [...recent20Table.dates].reverse();
-  }, [recent20Table]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100">
@@ -564,7 +582,7 @@ export default function Home() {
                           else setSelected(selected.filter((x) => x !== f));
                         }}
                       />
-                      <span className="text-sm font-medium text-slate-700">{getFactorLabel(f)}</span>
+                      <span className="text-sm font-medium text-slate-700">{f}</span>
                     </div>
 
                     <Link
@@ -574,7 +592,7 @@ export default function Home() {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </Link>
                   </label>
@@ -647,6 +665,103 @@ export default function Home() {
               </div>
             </section>
 
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">近 {lookbackDays} 日交易日因子報酬率</h2>
+                  <p className="text-sm text-slate-500">觀察最近區間單日報酬走勢</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <CopyButton
+                    onClick={() => {
+                      const tsv = buildReturnTableTSV(series, selected, lookbackDays);
+                      copyToClipboard(tsv);
+                    }}
+                  />
+                  <label className="text-sm text-slate-600 font-medium">近</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={lookbackDays}
+                    onChange={(e) => setLookbackDays(Math.max(1, parseInt(e.target.value || "1", 10)))}
+                    className="w-24 rounded-lg border-slate-200 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 text-slate-700 bg-slate-50"
+                  />
+                  <label className="text-sm text-slate-600 font-medium">日</label>
+                </div>
+              </div>
+
+              <div className="w-full h-[400px]">
+                <Plot
+                  data={recentReturnChartData as any}
+                  layout={{
+                    autosize: true,
+                    margin: { l: 50, r: 20, t: 20, b: 40 },
+                    showlegend: true,
+                    legend: { orientation: "h", y: 1.1 },
+                    xaxis: { gridcolor: "#f1f5f9" },
+                    yaxis: {
+                      gridcolor: "#f1f5f9",
+                      tickformat: ".2%",
+                      title: "Daily Return",
+                    },
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                  useResizeHandler
+                  config={{ displayModeBar: false }}
+                />
+              </div>
+            </section>
+
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">近 {lookbackDays} 日累積表現</h2>
+                  <p className="text-sm text-slate-500">以資料第一天為 100，依報酬率累積後，顯示最近區間表現</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <CopyButton
+                    onClick={() => {
+                      const tsv = buildBase100TSV(series, selected, lookbackDays);
+                      copyToClipboard(tsv);
+                    }}
+                  />
+                  <label className="text-sm text-slate-600 font-medium">近</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={lookbackDays}
+                    onChange={(e) => setLookbackDays(Math.max(1, parseInt(e.target.value || "1", 10)))}
+                    className="w-24 rounded-lg border-slate-200 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 text-slate-700 bg-slate-50"
+                  />
+                  <label className="text-sm text-slate-600 font-medium">日</label>
+                </div>
+              </div>
+
+              <div className="w-full h-[400px]">
+                <Plot
+                  data={recentBase100ChartData as any}
+                  layout={{
+                    autosize: true,
+                    margin: { l: 50, r: 20, t: 20, b: 40 },
+                    showlegend: true,
+                    legend: { orientation: "h", y: 1.1 },
+                    xaxis: { gridcolor: "#f1f5f9" },
+                    yaxis: {
+                      gridcolor: "#f1f5f9",
+                      title: "Base = 100",
+                    },
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                  useResizeHandler
+                  config={{ displayModeBar: false }}
+                />
+              </div>
+            </section>
+
             {/* 績效指標表格 */}
             <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
@@ -657,7 +772,6 @@ export default function Home() {
                   <thead className="bg-white text-slate-500 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-3 font-semibold">因子名稱</th>
-                      <th className="px-6 py-3 font-semibold">區間報酬</th>
                       <th className="px-6 py-3 font-semibold">年化報酬</th>
                       <th className="px-6 py-3 font-semibold">年化波動</th>
                       <th className="px-6 py-3 font-semibold">夏普比率</th>
@@ -672,40 +786,30 @@ export default function Home() {
                             href={`/factor/${encodeURIComponent(row.factor)}`}
                             className="hover:underline text-slate-900 flex items-center gap-1"
                           >
-                            {getFactorLabel(row.factor)}
+                            {row.factor}
+                            {/* 小圖示，暗示可點擊 */}
                             <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                              />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                             </svg>
                           </Link>
-                        </td>
-
-                        <td className={`px-6 py-3 font-bold ${row.period_return >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                          {(row.period_return * 100).toFixed(2)}%
                         </td>
 
                         <td className={`px-6 py-3 font-bold ${row.ann_return >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                           {(row.ann_return * 100).toFixed(2)}%
                         </td>
-
                         <td className="px-6 py-3 text-slate-600">{(row.ann_vol * 100).toFixed(2)}%</td>
                         <td className="px-6 py-3 text-slate-600">{row.sharpe === null ? "-" : row.sharpe.toFixed(2)}</td>
                         <td className="px-6 py-3 text-rose-600">{(row.maxdd * 100).toFixed(2)}%</td>
                       </tr>
                     ))}
-
                     {metrics.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
                           暫無資料
                         </td>
                       </tr>
                     )}
-                  </tbody>                  
+                  </tbody>
                 </table>
               </div>
             </section>
@@ -745,7 +849,7 @@ export default function Home() {
                     const r = rankedReturns?.[col]?.[row];
                     z[row][col] = factorToCode[fname] ?? -1;
                     const pct = r === null || r === undefined ? "NA" : `${((r as number) * 100).toFixed(2)}%`;
-                    text[row][col] = `<span style="font-weight:500">${getFactorLabel(fname)}</span><br>${pct}`;
+                    text[row][col] = `<span style="font-weight:bold">${fname}</span><br>${pct}`;
                   }
                 }
                 const y = Array.from({ length: N }, (_, i) => i + 1);
@@ -784,82 +888,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* === 新增：近 20 個交易日因子報酬率詳細表 === */}
-        <section className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-12">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-4">
-            <div className="flex-1">
-              <button
-                onClick={() => setRecent20Expanded(!recent20Expanded)}
-                className="flex items-center gap-2 hover:opacity-70 transition-opacity"
-              >
-                <svg
-                  className={`w-5 h-5 text-slate-600 transition-transform ${recent20Expanded ? "rotate-90" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                <h2 className="text-2xl font-bold text-slate-900">近 20 個交易日因子報酬率詳細表</h2>
-              </button>
-              <p className="text-sm text-slate-500 mt-1">顯示所有因子最近 20 個有交易日的每日報酬率，缺值以 - 表示</p>
-            </div>
-          </div>
-
-          {recent20Expanded && (
-            <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-              {recent20Loading ? (
-                <div className="h-[320px] flex items-center justify-center text-slate-400 animate-pulse">資料讀取中...</div>
-              ) : !recent20Table?.dates?.length ? (
-                <div className="h-[320px] flex items-center justify-center text-slate-400">暫無資料</div>
-              ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold sticky left-0 z-10 bg-slate-50 border-r border-slate-200 whitespace-nowrap">
-                        日期
-                      </th>
-                      {factors.map((f) => (
-                        <th key={`recent-head-${f}`} className="px-4 py-3 font-semibold whitespace-nowrap">
-                          {getFactorLabel(f)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {recent20DisplayDates.map((dt) => {
-                      const originalIdx = recent20Table.dates.indexOf(dt);
-                      return (
-                        <tr key={`recent-row-${dt}`} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3 font-medium text-slate-700 sticky left-0 z-10 bg-white border-r border-slate-100 whitespace-nowrap">
-                            {dt}
-                          </td>
-                          {factors.map((f) => {
-                            const v = recent20Table.rows[f]?.[originalIdx] ?? null;
-                            const isMissing = v === null || v === undefined || Number.isNaN(v as any);
-                            return (
-                              <td
-                                key={`recent-cell-${dt}-${f}`}
-                                className={`px-4 py-3 whitespace-nowrap ${
-                                  isMissing ? "text-slate-400" : v >= 0 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"
-                                }`}
-                              >
-                                {isMissing ? "-" : `${(v * 100).toFixed(2)}%`}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            </div>
-          )}
-        </section>
-
         {/* === 第三部分：Global Wave (Distinct Section) === */}
         <section className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-100 pb-6">
@@ -895,6 +923,7 @@ export default function Home() {
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
                 <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">比較因子</h3>
                 <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 space-y-1">
+                  
                   {/* ✅ Global Wave 全選按鈕：同樣改為 Checkbox Row，跟上面保持一致 */}
                   <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-white hover:shadow-sm cursor-pointer transition-all border-b border-slate-200 mb-1">
                     <input
@@ -920,7 +949,7 @@ export default function Home() {
                           else setGwSelected(gwSelected.filter((x) => x !== f));
                         }}
                       />
-                      <span className="text-sm font-medium text-slate-700">{getFactorLabel(f)}</span>
+                      <span className="text-sm font-medium text-slate-700">{f}</span>
                     </label>
                   ))}
                 </div>
@@ -961,12 +990,12 @@ export default function Home() {
                 <thead className="bg-slate-50 text-slate-600 font-semibold">
                   <tr>
                     <th className="px-4 py-3">因子名稱</th>
-                    <th className="px-4 py-3 text-emerald-600">Trough +6M</th>
-                    <th className="px-4 py-3 text-emerald-600">Trough +12M</th>
-                    <th className="px-4 py-3 text-rose-600">Peak +6M</th>
-                    <th className="px-4 py-3 text-rose-600">Peak +12M</th>
-                    <th className="px-4 py-3">Trough 次數</th>
-                    <th className="px-4 py-3">Peak 次數</th>
+                    <th className="px-4 py-3 text-emerald-600">波谷後 +6M</th>
+                    <th className="px-4 py-3 text-emerald-600">波谷後 +12M</th>
+                    <th className="px-4 py-3 text-rose-600">波峰後 +6M</th>
+                    <th className="px-4 py-3 text-rose-600">波峰後 +12M</th>
+                    <th className="px-4 py-3">波谷次數</th>
+                    <th className="px-4 py-3">波峰次數</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -976,7 +1005,7 @@ export default function Home() {
                     const pk = d?.summary?.peak;
                     return (
                       <tr key={`gw-row-${f}`} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-medium">{getFactorLabel(f)}</td>
+                        <td className="px-4 py-3 font-medium">{f}</td>
                         <td className="px-4 py-3">{fmtPct(tr?.avg_6m ?? null)}</td>
                         <td className="px-4 py-3">{fmtPct(tr?.avg_12m ?? null)}</td>
                         <td className="px-4 py-3">{fmtPct(pk?.avg_6m ?? null)}</td>
@@ -997,7 +1026,7 @@ export default function Home() {
               <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-white">訊號歷史回測</h3>
-                  <p className="text-xs text-slate-400">藍線：基準指數｜紅▼：Peak 訊號｜綠▲：Trough 訊號</p>
+                  <p className="text-xs text-slate-400">藍線：基準指數｜紅▼：波峰訊號｜綠▲：波谷訊號</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400 font-bold uppercase">基準指數</span>
@@ -1008,7 +1037,7 @@ export default function Home() {
                   >
                     {factors.map((f) => (
                       <option key={`bench-${f}`} value={f}>
-                        {getFactorLabel(f)}
+                        {f}
                       </option>
                     ))}
                   </select>
