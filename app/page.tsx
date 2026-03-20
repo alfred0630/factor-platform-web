@@ -1054,7 +1054,7 @@ export default function Home() {
                     </svg>
                     <h2 className="text-2xl font-bold text-slate-900">近 {recentCumDays} 日累積表現</h2>
                   </button>
-                  <p className="text-sm text-slate-500 mt-1">統一以各資料集第一天為 100，之後按報酬率累積成長，缺值以 - 表示</p>
+                  <p className="text-sm text-slate-500 mt-1">統一以2003/01/01為 100，之後按報酬率累積成長，缺值以 - 表示</p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -1105,9 +1105,9 @@ export default function Home() {
                                 key={`recent-cum-head-${f}`}
                                 className={`px-4 py-3 font-semibold whitespace-nowrap min-w-[120px] ${
                                   idx === 0
-                                    ? "sticky left-[120px] z-20 bg-slate-50 border-r border-slate-200"
+                                    ? "sticky left-[120px] z-20 bg-slate-100 border-r border-slate-300"
                                     : idx === 1
-                                    ? "sticky left-[240px] z-20 bg-slate-50 border-r border-slate-200"
+                                    ? "sticky left-[240px] z-20 bg-slate-100 border-r border-slate-300"
                                     : ""
                                 }`}
                               >
