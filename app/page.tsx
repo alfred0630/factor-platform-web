@@ -212,6 +212,7 @@ export default function Home() {
   const [recentCumDays, setRecentCumDays] = useState(20);
   const [recentCumTable, setRecentCumTable] = useState<RecentTable | null>(null);
   const [recentCumLoading, setRecentCumLoading] = useState(false);
+  const [recentCumExpanded, setRecentCumExpanded] = useState(false);
 
   // ===== Global Wave =====
   const [gwSelected, setGwSelected] = useState<string[]>(["Top200", "PE_low", "PB_low"]);
@@ -495,14 +496,21 @@ export default function Home() {
     }
   };
 
+  const orderedTableFactors = useMemo(() => {
+    const priority = ["TWA00", "Top200"];
+    const existingPriority = priority.filter((f) => factors.includes(f));
+    const others = factors.filter((f) => !priority.includes(f));
+    return [...existingPriority, ...others];
+  }, [factors]);
+
   const buildRecentDailyTableText = () => {
     if (!recent20Table?.dates?.length) return "";
-    const header = ["日期", ...factors.map((f) => getFactorLabel(f))];
+    const header = ["日期", ...orderedTableFactors.map((f) => getFactorLabel(f))];
     const rows = recent20DisplayDates.map((dt) => {
       const originalIdx = recent20Table.dates.indexOf(dt);
       return [
         dt,
-        ...factors.map((f) => {
+        ...orderedTableFactors.map((f) => {
           const v = recent20Table.rows[f]?.[originalIdx] ?? null;
           const isMissing = v === null || v === undefined || Number.isNaN(v as any);
           return isMissing ? "-" : `${(v * 100).toFixed(2)}%`;
@@ -514,12 +522,12 @@ export default function Home() {
 
   const buildRecentCumTableText = () => {
     if (!recentCumTable?.dates?.length) return "";
-    const header = ["日期", ...factors.map((f) => getFactorLabel(f))];
+    const header = ["日期", ...orderedTableFactors.map((f) => getFactorLabel(f))];
     const rows = recentCumDisplayDates.map((dt) => {
       const originalIdx = recentCumTable.dates.indexOf(dt);
       return [
         dt,
-        ...factors.map((f) => {
+        ...orderedTableFactors.map((f) => {
           const v = recentCumTable.rows[f]?.[originalIdx] ?? null;
           const isMissing = v === null || v === undefined || Number.isNaN(v as any);
           return isMissing ? "-" : v.toFixed(2);
@@ -971,11 +979,20 @@ export default function Home() {
                     <table className="w-full text-sm text-left">
                       <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                         <tr>
-                          <th className="px-4 py-3 font-semibold sticky left-0 z-10 bg-slate-50 border-r border-slate-200 whitespace-nowrap">
+                          <th className="px-4 py-3 font-semibold sticky left-0 z-30 bg-slate-50 border-r border-slate-200 whitespace-nowrap min-w-[120px]">
                             日期
                           </th>
-                          {factors.map((f) => (
-                            <th key={`recent-head-${f}`} className="px-4 py-3 font-semibold whitespace-nowrap">
+                          {orderedTableFactors.map((f, idx) => (
+                            <th
+                              key={`recent-head-${f}`}
+                              className={`px-4 py-3 font-semibold whitespace-nowrap min-w-[120px] ${
+                                idx === 0
+                                  ? "sticky left-[120px] z-20 bg-slate-50 border-r border-slate-200"
+                                  : idx === 1
+                                  ? "sticky left-[240px] z-20 bg-slate-50 border-r border-slate-200"
+                                  : ""
+                              }`}
+                            >
                               {getFactorLabel(f)}
                             </th>
                           ))}
@@ -986,16 +1003,22 @@ export default function Home() {
                           const originalIdx = recent20Table.dates.indexOf(dt);
                           return (
                             <tr key={`recent-row-${dt}`} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-4 py-3 font-medium text-slate-700 sticky left-0 z-10 bg-white border-r border-slate-100 whitespace-nowrap">
+                              <td className="px-4 py-3 font-medium text-slate-700 sticky left-0 z-30 bg-white border-r border-slate-100 whitespace-nowrap min-w-[120px]">
                                 {dt}
                               </td>
-                              {factors.map((f) => {
+                              {orderedTableFactors.map((f, idx) => {
                                 const v = recent20Table.rows[f]?.[originalIdx] ?? null;
                                 const isMissing = v === null || v === undefined || Number.isNaN(v as any);
                                 return (
                                   <td
                                     key={`recent-cell-${dt}-${f}`}
-                                    className={`px-4 py-3 whitespace-nowrap ${
+                                    className={`px-4 py-3 whitespace-nowrap min-w-[120px] ${
+                                      idx === 0
+                                        ? "sticky left-[120px] z-20 bg-white border-r border-slate-100"
+                                        : idx === 1
+                                        ? "sticky left-[240px] z-20 bg-white border-r border-slate-100"
+                                        : ""
+                                    } ${
                                       isMissing ? "text-slate-400" : v >= 0 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"
                                     }`}
                                   >
@@ -1017,7 +1040,20 @@ export default function Home() {
             <div>
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-slate-900">近 {recentCumDays} 日累積表現</h2>
+                  <button
+                    onClick={() => setRecentCumExpanded(!recentCumExpanded)}
+                    className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                  >
+                    <svg
+                      className={`w-5 h-5 text-slate-600 transition-transform ${recentCumExpanded ? "rotate-90" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <h2 className="text-2xl font-bold text-slate-900">近 {recentCumDays} 日累積表現</h2>
+                  </button>
                   <p className="text-sm text-slate-500 mt-1">統一以各資料集第一天為 100，之後按報酬率累積成長，缺值以 - 表示</p>
                 </div>
 
@@ -1050,56 +1086,73 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-                {recentCumLoading ? (
-                  <div className="h-[320px] flex items-center justify-center text-slate-400 animate-pulse">資料讀取中...</div>
-                ) : !recentCumTable?.dates?.length ? (
-                  <div className="h-[320px] flex items-center justify-center text-slate-400">暫無資料</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
-                        <tr>
-                          <th className="px-4 py-3 font-semibold sticky left-0 z-10 bg-slate-50 border-r border-slate-200 whitespace-nowrap">
-                            日期
-                          </th>
-                          {factors.map((f) => (
-                            <th key={`recent-cum-head-${f}`} className="px-4 py-3 font-semibold whitespace-nowrap">
-                              {getFactorLabel(f)}
+              {recentCumExpanded && (
+                <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                  {recentCumLoading ? (
+                    <div className="h-[320px] flex items-center justify-center text-slate-400 animate-pulse">資料讀取中...</div>
+                  ) : !recentCumTable?.dates?.length ? (
+                    <div className="h-[320px] flex items-center justify-center text-slate-400">暫無資料</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+                          <tr>
+                            <th className="px-4 py-3 font-semibold sticky left-0 z-30 bg-slate-50 border-r border-slate-200 whitespace-nowrap min-w-[120px]">
+                              日期
                             </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {recentCumDisplayDates.map((dt) => {
-                          const originalIdx = recentCumTable.dates.indexOf(dt);
-                          return (
-                            <tr key={`recent-cum-row-${dt}`} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-4 py-3 font-medium text-slate-700 sticky left-0 z-10 bg-white border-r border-slate-100 whitespace-nowrap">
-                                {dt}
-                              </td>
-                              {factors.map((f) => {
-                                const v = recentCumTable.rows[f]?.[originalIdx] ?? null;
-                                const isMissing = v === null || v === undefined || Number.isNaN(v as any);
-                                return (
-                                  <td
-                                    key={`recent-cum-cell-${dt}-${f}`}
-                                    className={`px-4 py-3 whitespace-nowrap ${
-                                      isMissing ? "text-slate-400" : v >= 100 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"
-                                    }`}
-                                  >
-                                    {isMissing ? "-" : v.toFixed(2)}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                            {orderedTableFactors.map((f, idx) => (
+                              <th
+                                key={`recent-cum-head-${f}`}
+                                className={`px-4 py-3 font-semibold whitespace-nowrap min-w-[120px] ${
+                                  idx === 0
+                                    ? "sticky left-[120px] z-20 bg-slate-50 border-r border-slate-200"
+                                    : idx === 1
+                                    ? "sticky left-[240px] z-20 bg-slate-50 border-r border-slate-200"
+                                    : ""
+                                }`}
+                              >
+                                {getFactorLabel(f)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {recentCumDisplayDates.map((dt) => {
+                            const originalIdx = recentCumTable.dates.indexOf(dt);
+                            return (
+                              <tr key={`recent-cum-row-${dt}`} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-4 py-3 font-medium text-slate-700 sticky left-0 z-30 bg-white border-r border-slate-100 whitespace-nowrap min-w-[120px]">
+                                  {dt}
+                                </td>
+                                {orderedTableFactors.map((f, idx) => {
+                                  const v = recentCumTable.rows[f]?.[originalIdx] ?? null;
+                                  const isMissing = v === null || v === undefined || Number.isNaN(v as any);
+                                  return (
+                                    <td
+                                      key={`recent-cum-cell-${dt}-${f}`}
+                                      className={`px-4 py-3 whitespace-nowrap min-w-[120px] ${
+                                        idx === 0
+                                          ? "sticky left-[120px] z-20 bg-white border-r border-slate-100"
+                                          : idx === 1
+                                          ? "sticky left-[240px] z-20 bg-white border-r border-slate-100"
+                                          : ""
+                                      } ${
+                                        isMissing ? "text-slate-400" : v >= 100 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"
+                                      }`}
+                                    >
+                                      {isMissing ? "-" : v.toFixed(2)}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </section>
