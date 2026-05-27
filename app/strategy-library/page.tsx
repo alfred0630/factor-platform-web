@@ -42,6 +42,8 @@ type GithubFile = {
   type: string;
 };
 
+type StockNamesResp = Record<string, string>;
+
 const FACTOR_LABELS: Record<string, string> = {
   StarSearch: "StarSearch",
   EPS_growth: "EPS 動能",
@@ -189,7 +191,6 @@ async function listStrategyNames(): Promise<string[]> {
   ]);
 
   const holdingSet = new Set(holdingNames);
-
   const bothSides = returnNames.filter((name) => holdingSet.has(name));
 
   if (bothSides.length > 0) return bothSides;
@@ -202,6 +203,7 @@ export default function FactorLibraryPage() {
   const [selectedFactors, setSelectedFactors] = useState<string[]>([]);
   const [returnsMap, setReturnsMap] = useState<Record<string, ReturnsResp>>({});
   const [holdingsMap, setHoldingsMap] = useState<Record<string, HoldingsResp>>({});
+  const [stockNames, setStockNames] = useState<StockNamesResp>({});
 
   const [start, setStart] = useState("2005-01-01");
   const [end, setEnd] = useState("2026-12-31");
@@ -214,6 +216,12 @@ export default function FactorLibraryPage() {
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const getStockDisplay = (stockCode: string) => {
+    const code = String(stockCode);
+    const name = stockNames[code];
+    return name ? `${code}｜${name}` : code;
+  };
 
   useEffect(() => {
     (async () => {
@@ -232,6 +240,17 @@ export default function FactorLibraryPage() {
         );
       } finally {
         setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const d = await fetchJson<StockNamesResp>(`${RAW_BASE}/data/stock_names.json`);
+        setStockNames(d || {});
+      } catch {
+        setStockNames({});
       }
     })();
   }, []);
@@ -406,11 +425,13 @@ export default function FactorLibraryPage() {
   };
 
   const copyStocks = async (stocks: string[]) => {
+    const text = stocks.map((stock) => getStockDisplay(stock)).join("、");
+
     try {
-      await navigator.clipboard.writeText(stocks.join("、"));
+      await navigator.clipboard.writeText(text);
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = stocks.join("、");
+      textarea.value = text;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand("copy");
@@ -425,7 +446,7 @@ export default function FactorLibraryPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 to-blue-600">
-                清大因子庫
+                清大策略庫
               </h1>
               <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-700 border border-indigo-200">
                 Strategy Lab
@@ -458,9 +479,7 @@ export default function FactorLibraryPage() {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">策略選擇</h2>
-                <p className="text-sm text-slate-500">
-                  掃描到 {factors.length} 個策略
-                </p>
+                <p className="text-sm text-slate-500">掃描到 {factors.length} 個策略</p>
               </div>
 
               <div className="flex gap-2">
@@ -613,17 +632,23 @@ export default function FactorLibraryPage() {
                         {getFactorLabel(row.factor)}
                       </td>
 
-                      <td className={`px-6 py-3 font-bold ${row.periodReturn >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      <td
+                        className={`px-6 py-3 font-bold ${
+                          row.periodReturn >= 0 ? "text-emerald-600" : "text-rose-600"
+                        }`}
+                      >
                         {fmtPct(row.periodReturn)}
                       </td>
 
-                      <td className={`px-6 py-3 font-bold ${row.annReturn >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      <td
+                        className={`px-6 py-3 font-bold ${
+                          row.annReturn >= 0 ? "text-emerald-600" : "text-rose-600"
+                        }`}
+                      >
                         {fmtPct(row.annReturn)}
                       </td>
 
-                      <td className="px-6 py-3 text-slate-600">
-                        {fmtPct(row.annVol)}
-                      </td>
+                      <td className="px-6 py-3 text-slate-600">{fmtPct(row.annVol)}</td>
 
                       <td className="px-6 py-3 text-slate-600">
                         {row.sharpe === null ? "-" : row.sharpe.toFixed(2)}
@@ -693,7 +718,7 @@ export default function FactorLibraryPage() {
                                   key={`${row.factor}-${selectedMonth}-${stock}`}
                                   className="rounded-full bg-white px-3 py-1 text-sm font-bold text-slate-700 border border-slate-200 shadow-sm"
                                 >
-                                  {stock}
+                                  {getStockDisplay(stock)}
                                 </span>
                               ))}
                             </div>
@@ -813,9 +838,7 @@ export default function FactorLibraryPage() {
                   {selectedMonth || "-"} 的{mode === "intersection" ? "交集" : "聯集"}結果
                 </h3>
 
-                <p className="text-sm text-slate-500">
-                  共 {intersectionOrUnion.length} 檔股票
-                </p>
+                <p className="text-sm text-slate-500">共 {intersectionOrUnion.length} 檔股票</p>
               </div>
 
               <button
@@ -833,7 +856,7 @@ export default function FactorLibraryPage() {
                     key={`result-${stock}`}
                     className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-bold text-slate-700 shadow-sm"
                   >
-                    {stock}
+                    {getStockDisplay(stock)}
                   </span>
                 ))}
               </div>
