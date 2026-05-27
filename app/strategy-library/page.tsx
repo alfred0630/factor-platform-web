@@ -38,8 +38,8 @@ type MetricRow = {
 
 type GithubFile = {
   name: string;
-  path: string;
-  type: "file" | "dir";
+  path?: string;
+  type: string;
 };
 
 const FACTOR_LABELS: Record<string, string> = {
@@ -210,7 +210,7 @@ export default function FactorLibraryPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
   const [basketFactors, setBasketFactors] = useState<string[]>([]);
-  const [setMode, setSetMode] = useState<"intersection" | "union">("intersection");
+  const [mode, setMode] = useState<"intersection" | "union">("intersection");
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -249,7 +249,7 @@ export default function FactorLibraryPage() {
 
       try {
         const returnPairs = await Promise.all(
-          selectedFactors.map(async (f) => {
+          selectedFactors.map(async (f): Promise<[string, ReturnsResp]> => {
             const d = await fetchJson<ReturnsResp>(
               `${RAW_BASE}/strategy_data/returns/${encodeURIComponent(f)}.json`
             );
@@ -261,12 +261,12 @@ export default function FactorLibraryPage() {
               ret: d.ret || [],
             };
 
-            return [f, normalized] as const;
+            return [f, normalized];
           })
         );
 
         const holdingsPairs = await Promise.all(
-          selectedFactors.map(async (f) => {
+          selectedFactors.map(async (f): Promise<[string, HoldingsResp]> => {
             try {
               const d = await fetchJson<HoldingsResp>(
                 `${RAW_BASE}/strategy_data/holdings/${encodeURIComponent(f)}.json`
@@ -279,16 +279,16 @@ export default function FactorLibraryPage() {
                 holdings: d.holdings || {},
               };
 
-              return [f, normalized] as const;
+              return [f, normalized];
             } catch {
               return [
                 f,
                 {
                   factor: f,
-                  months: [],
+                  months: [] as string[],
                   holdings: {},
                 },
-              ] as const;
+              ];
             }
           })
         );
@@ -374,7 +374,7 @@ export default function FactorLibraryPage() {
 
     const lists = basketFactors.map((f) => holdingsMap[f]?.holdings?.[selectedMonth] || []);
 
-    if (setMode === "union") {
+    if (mode === "union") {
       return Array.from(new Set(lists.flat())).sort();
     }
 
@@ -384,7 +384,7 @@ export default function FactorLibraryPage() {
     return first
       .filter((stock) => rest.every((list) => list.includes(stock)))
       .sort();
-  }, [basketFactors, selectedMonth, holdingsMap, setMode]);
+  }, [basketFactors, selectedMonth, holdingsMap, mode]);
 
   const toggleSelectedFactor = (factor: string) => {
     if (selectedFactors.includes(factor)) {
@@ -745,9 +745,9 @@ export default function FactorLibraryPage() {
 
               <div className="rounded-lg bg-slate-100 p-1">
                 <button
-                  onClick={() => setSetMode("intersection")}
+                  onClick={() => setMode("intersection")}
                   className={`rounded-md px-4 py-1.5 text-sm font-bold transition ${
-                    setMode === "intersection"
+                    mode === "intersection"
                       ? "bg-white text-indigo-600 shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
@@ -756,9 +756,9 @@ export default function FactorLibraryPage() {
                 </button>
 
                 <button
-                  onClick={() => setSetMode("union")}
+                  onClick={() => setMode("union")}
                   className={`rounded-md px-4 py-1.5 text-sm font-bold transition ${
-                    setMode === "union"
+                    mode === "union"
                       ? "bg-white text-indigo-600 shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
                   }`}
@@ -810,7 +810,7 @@ export default function FactorLibraryPage() {
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="font-bold text-slate-900">
-                  {selectedMonth || "-"} 的{setMode === "intersection" ? "交集" : "聯集"}結果
+                  {selectedMonth || "-"} 的{mode === "intersection" ? "交集" : "聯集"}結果
                 </h3>
 
                 <p className="text-sm text-slate-500">
