@@ -640,7 +640,16 @@ export default function Home() {
               NTHU
             </span>
           </div>
-          <div className="text-xs text-slate-500 font-medium hidden sm:block">Data: CMoney</div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/factor-library"
+              className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 transition-colors"
+            >
+              清大因子庫
+            </Link>
+
+            <div className="text-xs text-slate-500 font-medium hidden sm:block">Data: CMoney</div>
+          </div>
         </div>
       </header>
 
