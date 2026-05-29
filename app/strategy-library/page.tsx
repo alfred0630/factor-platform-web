@@ -1,4 +1,7 @@
+
 "use client";
+
+
 
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -19,6 +22,7 @@ type ReturnsResp = {
   dates: string[];
   ret: number[];
 };
+
 
 type HoldingsResp = {
   factor: string;
@@ -321,9 +325,7 @@ export default function FactorLibraryPage() {
         setReturnsMap((prev) => ({ ...prev, ...retObj }));
         setHoldingsMap((prev) => ({ ...prev, ...holdObj }));
 
-        const allMonths = Array.from(
-          new Set(holdingsPairs.flatMap(([, d]) => d.months || []))
-        ).sort();
+        const allMonths = Array.from(new Set(holdingsPairs.flatMap(([, d]) => d.months || []))).sort();
 
         if (!selectedMonth && allMonths.length) {
           setSelectedMonth(allMonths[allMonths.length - 1]);
@@ -380,8 +382,13 @@ export default function FactorLibraryPage() {
       for (const m of d?.months || []) s.add(m);
     }
 
+    for (const f of basketFactors) {
+      const d = holdingsMap[f];
+      for (const m of d?.months || []) s.add(m);
+    }
+
     return Array.from(s).sort();
-  }, [selectedFactors, holdingsMap]);
+  }, [selectedFactors, basketFactors, holdingsMap]);
 
   const holdingsForExpanded = useMemo(() => {
     if (!expandedFactor || !selectedMonth) return [];
@@ -400,9 +407,7 @@ export default function FactorLibraryPage() {
     const [first, ...rest] = lists;
     if (!first) return [];
 
-    return first
-      .filter((stock) => rest.every((list) => list.includes(stock)))
-      .sort();
+    return first.filter((stock) => rest.every((list) => list.includes(stock))).sort();
   }, [basketFactors, selectedMonth, holdingsMap, mode]);
 
   const toggleSelectedFactor = (factor: string) => {
@@ -418,10 +423,31 @@ export default function FactorLibraryPage() {
     if (!basketFactors.includes(factor)) {
       setBasketFactors([...basketFactors, factor]);
     }
+
+    if (!selectedFactors.includes(factor)) {
+      setSelectedFactors([...selectedFactors, factor]);
+    }
   };
 
   const removeFromBasket = (factor: string) => {
     setBasketFactors(basketFactors.filter((x) => x !== factor));
+  };
+
+  const toggleBasketFactor = (factor: string) => {
+    if (basketFactors.includes(factor)) {
+      removeFromBasket(factor);
+    } else {
+      addToBasket(factor);
+    }
+  };
+
+  const selectAllBasketFactors = () => {
+    setBasketFactors(factors);
+    setSelectedFactors(factors);
+  };
+
+  const clearBasketFactors = () => {
+    setBasketFactors([]);
   };
 
   const copyStocks = async (stocks: string[]) => {
@@ -534,7 +560,7 @@ export default function FactorLibraryPage() {
                       onClick={() => addToBasket(factor)}
                       className="rounded-md bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-100"
                     >
-                      加入
+                      加入交集
                     </button>
                   </div>
                 ))
@@ -748,10 +774,10 @@ export default function FactorLibraryPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">因子交集 / 聯集分析</h2>
+              <h2 className="text-xl font-bold text-slate-900">策略交集 / 聯集分析</h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                把左側策略拖曳到這個區塊，或按「加入」，即可比較同月份選股的交集或聯集
+                在此區塊直接選擇策略，也可以從上方策略列表拖曳進來，比較同月份選股的交集或聯集
               </p>
             </div>
 
@@ -797,74 +823,177 @@ export default function FactorLibraryPage() {
           {factors.length <= 1 && (
             <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-700">
               目前 strategy_data 只有一個策略時，交集 / 聯集功能的分析意義有限。
-              未來只要在 strategy_data/returns 與 strategy_data/holdings 新增更多策略 JSON，
-              這個區塊就可以直接比較多策略的選股重疊。
+              未來只要新增更多策略 JSON，這個區塊就可以直接比較多策略的選股重疊。
             </div>
           )}
 
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const factor = e.dataTransfer.getData("text/plain");
-              if (factor) addToBasket(factor);
-            }}
-            className="mb-6 min-h-[120px] rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/50 p-5"
-          >
-            {basketFactors.length ? (
-              <div className="flex flex-wrap gap-2">
-                {basketFactors.map((factor) => (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <aside className="lg:col-span-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-900">比較策略</h3>
+                  <p className="text-sm text-slate-500">
+                    已選 {basketFactors.length} / {factors.length}
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
                   <button
-                    key={`basket-${factor}`}
-                    onClick={() => removeFromBasket(factor)}
-                    className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-rose-600"
-                    title="點擊移除"
+                    onClick={selectAllBasketFactors}
+                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 border border-slate-200 hover:bg-slate-100"
                   >
-                    {getFactorLabel(factor)} ×
+                    全選
                   </button>
-                ))}
-              </div>
-            ) : (
-              <div className="flex h-[80px] items-center justify-center text-sm font-medium text-indigo-400">
-                將策略拖曳到這裡，開始計算交集或聯集
-              </div>
-            )}
-          </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="font-bold text-slate-900">
-                  {selectedMonth || "-"} 的{mode === "intersection" ? "交集" : "聯集"}結果
-                </h3>
-
-                <p className="text-sm text-slate-500">共 {intersectionOrUnion.length} 檔股票</p>
-              </div>
-
-              <button
-                onClick={() => copyStocks(intersectionOrUnion)}
-                className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-600 border border-slate-200 hover:bg-slate-100"
-              >
-                複製結果
-              </button>
-            </div>
-
-            {intersectionOrUnion.length ? (
-              <div className="flex flex-wrap gap-2">
-                {intersectionOrUnion.map((stock) => (
-                  <span
-                    key={`result-${stock}`}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-bold text-slate-700 shadow-sm"
+                  <button
+                    onClick={clearBasketFactors}
+                    className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-600 border border-slate-200 hover:bg-slate-100"
                   >
-                    {getStockDisplay(stock)}
-                  </span>
-                ))}
+                    清空
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-400">
-                目前沒有結果。請先加入策略，或確認該月份有持股資料。
+
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const factor = e.dataTransfer.getData("text/plain");
+                  if (factor) addToBasket(factor);
+                }}
+                className="mb-4 rounded-xl border-2 border-dashed border-indigo-200 bg-white p-4 text-center text-sm font-medium text-indigo-400"
+              >
+                也可以把策略拖曳到這裡
               </div>
-            )}
+
+              <div className="max-h-[320px] overflow-y-auto space-y-2 pr-1">
+                {factors.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-400">
+                    尚未掃描到策略
+                  </div>
+                ) : (
+                  factors.map((factor) => (
+                    <label
+                      key={`basket-check-${factor}`}
+                      className={`flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3 transition ${
+                        basketFactors.includes(factor)
+                          ? "border-indigo-200 bg-indigo-50"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={basketFactors.includes(factor)}
+                          onChange={() => toggleBasketFactor(factor)}
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+
+                        <span className="text-sm font-bold text-slate-700">
+                          {getFactorLabel(factor)}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                          basketFactors.includes(factor)
+                            ? "bg-indigo-600 text-white"
+                            : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {basketFactors.includes(factor) ? "已加入" : "未選"}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </aside>
+
+            <div className="lg:col-span-8">
+              <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900">
+                      {selectedMonth || "-"} 的{mode === "intersection" ? "交集" : "聯集"}結果
+                    </h3>
+
+                    <p className="text-sm text-slate-500">
+                      使用 {basketFactors.length} 個策略計算，共 {intersectionOrUnion.length} 檔股票
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => copyStocks(intersectionOrUnion)}
+                    className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-600 border border-slate-200 hover:bg-slate-100"
+                  >
+                    複製結果
+                  </button>
+                </div>
+
+                {basketFactors.length > 0 && (
+                  <div className="mb-5 flex flex-wrap gap-2">
+                    {basketFactors.map((factor) => (
+                      <button
+                        key={`selected-basket-${factor}`}
+                        onClick={() => removeFromBasket(factor)}
+                        className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-rose-600"
+                        title="點擊移除"
+                      >
+                        {getFactorLabel(factor)} ×
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {intersectionOrUnion.length ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {intersectionOrUnion.map((stock) => (
+                      <div
+                        key={`result-${stock}`}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                      >
+                        <div className="text-sm font-bold text-slate-800">
+                          {getStockDisplay(stock)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-400">
+                    目前沒有結果。請先在左側選擇策略，或確認該月份有持股資料。
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <h4 className="mb-3 text-sm font-bold text-slate-700">目前選取策略的月份持股數</h4>
+
+                {basketFactors.length ? (
+                  <div className="space-y-2">
+                    {basketFactors.map((factor) => {
+                      const count = holdingsMap[factor]?.holdings?.[selectedMonth]?.length || 0;
+
+                      return (
+                        <div
+                          key={`basket-stat-${factor}`}
+                          className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-2"
+                        >
+                          <span className="text-sm font-medium text-slate-700">
+                            {getFactorLabel(factor)}
+                          </span>
+
+                          <span className="text-sm font-bold text-indigo-600">
+                            {count} 檔
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-400">尚未選擇策略</div>
+                )}
+              </div>
+            </div>
           </div>
         </section>
       </main>
